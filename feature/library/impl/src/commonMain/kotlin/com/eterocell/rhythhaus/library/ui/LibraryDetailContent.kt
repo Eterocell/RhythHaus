@@ -1,22 +1,21 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberOverscrollEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,12 +23,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausTypography
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
@@ -39,6 +47,7 @@ import rhythhaus.feature.library.generated.resources.album_detail_subtitle_forma
 import rhythhaus.feature.library.generated.resources.artist_detail_subtitle_format
 import rhythhaus.feature.library.generated.resources.unknown_artist
 import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 
 /** A resolved drill-down row action. */
 public sealed interface DrillDownAction {
@@ -72,22 +81,17 @@ public fun dispatchDrillDownAction(
     }
 }
 
-internal fun shouldApplyDrillDownOverscroll(
-    canScrollForward: Boolean,
-    canScrollBackward: Boolean,
-): Boolean = canScrollForward || canScrollBackward
-
 /**
  * Renders an already-resolved album or artist detail destination using only raw
- * feature inputs and callbacks. It owns the artwork-collapse chrome, list
- * state, local backdrop, and selected-row fallback; Shared owns route
- * resolution, Back, selection state, playback policy, and scroll storage.
+ * feature inputs and callbacks. It owns its artwork, list state, local
+ * backdrop, and selected-row fallback; Shared owns route chrome, Back,
+ * selection state, playback policy, and scroll storage.
  *
  * @param title the detail title (album or artist name).
  * @param summary raw detail counts used to compose the localized subtitle.
  * @param tracks the resolved ordered detail track sequence.
- * @param topBarArtworkTrack the representative track whose artwork drives the
- *   expanding chrome, or null.
+ * @param representativeArtworkTrack the representative track whose artwork is
+ *   shown above the detail summary, or null.
  * @param currentTrackId the current playback track ID, or null.
  * @param selectionPage the Shared-owned selection page this detail renders.
  * @param selectionModeActive whether rows currently select rather than play.
@@ -115,7 +119,7 @@ public fun DrillDownView(
     title: String,
     summary: LibraryDetailSummary,
     tracks: List<Track>,
-    topBarArtworkTrack: Track?,
+    representativeArtworkTrack: Track?,
     currentTrackId: String?,
     selectionPage: LibrarySelectionPage,
     selectionModeActive: Boolean,
@@ -156,70 +160,23 @@ public fun DrillDownView(
     }
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().leftEdgeSwipeBack(onBack),
+        modifier =
+            Modifier.fillMaxSize().leftEdgeSwipeBack(onBack).semantics {
+                paneTitle = title
+            },
     ) {
-        val drillDownStatusBarHeight = rememberSystemBarTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
-        val shouldApplyOverscroll by
-            remember(listState) {
-                derivedStateOf {
-                    shouldApplyDrillDownOverscroll(
-                        canScrollForward = listState.canScrollForward,
-                        canScrollBackward = listState.canScrollBackward,
-                    )
-                }
-            }
-        val overscrollEffect =
-            if (shouldApplyOverscroll) rememberOverscrollEffect() else null
-        val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior {
-            shouldApplyDrillDownOverscroll(
-                canScrollForward = listState.canScrollForward,
-                canScrollBackward = listState.canScrollBackward,
-            )
-        }
         val topBarArtworkState =
             rememberLazyTrackArtworkState(
-                    trackId = topBarArtworkTrack?.id,
-                    eagerArtworkBytes = topBarArtworkTrack?.artworkBytes,
+                    trackId = representativeArtworkTrack?.id,
+                    eagerArtworkBytes =
+                        representativeArtworkTrack?.artworkBytes,
                     artworkLoader = artworkLoader,
                 )
                 .value
-        val drillDownArtwork =
-            DrillDownArtwork(
-                representativeTrackId = topBarArtworkTrack?.id,
-                state = topBarArtworkState,
-            )
-        val scrollOwner = drillDownScrollOwner(drillDownArtwork)
         val artworkBytes =
             (topBarArtworkState as? TrackArtworkLoadState.Available)?.bytes
-        val hasTopBarArtwork = artworkBytes != null
-        val collapsedChromeHeight =
-            drillDownStatusBarHeight + NestedScrollChromeToolbarHeight
-        val density = LocalDensity.current
-        val artworkGeometry =
-            ArtworkCollapseGeometry(
-                expandedHeightPx = with(density) { maxWidth.toPx() },
-                collapsedHeightPx =
-                    with(density) { collapsedChromeHeight.toPx() },
-            )
-        val artworkSnapshot by
-            remember(listState, artworkGeometry) {
-                derivedStateOf {
-                    artworkGeometry.snapshot(
-                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                        firstVisibleItemScrollOffset =
-                            listState.firstVisibleItemScrollOffset,
-                    )
-                }
-            }
-        val expandedArtworkHeight = maxWidth
-        val upperSliceHeight =
-            with(density) { artworkSnapshot.upperSliceHeightPx.toDp() }
-        val lowerSliceHeight =
-            with(density) { artworkSnapshot.lowerSliceHeightPx.toDp() }
-        val lowerSliceImageOffset =
-            with(density) { artworkSnapshot.lowerSliceImageOffsetPx.toDp() }
         LaunchedEffect(
             listState.firstVisibleItemIndex,
             listState.firstVisibleItemScrollOffset) {
@@ -240,129 +197,84 @@ public fun DrillDownView(
                 color = HausColors.current.background) {
                     LazyColumn(
                         state = listState,
-                        overscrollEffect = overscrollEffect,
-                        modifier =
-                            Modifier.fillMaxSize()
-                                .then(
-                                    if (hasTopBarArtwork) {
-                                        Modifier
-                                    } else {
-                                        Modifier.nestedScroll(
-                                                miuixScrollBehavior
-                                                    .nestedScrollConnection)
-                                            .padding(horizontal = 20.dp)
-                                    },
-                                ),
+                        modifier = Modifier.fillMaxSize(),
                         contentPadding =
-                            if (hasTopBarArtwork) {
-                                PaddingValues()
-                            } else {
-                                PaddingValues(
-                                    top =
-                                        drillDownStatusBarHeight +
-                                            DrillDownMiuixScrollContentTopPadding)
-                            },
-                        verticalArrangement =
-                            if (hasTopBarArtwork) {
-                                Arrangement.Top
-                            } else {
-                                Arrangement.spacedBy(18.dp)
-                            },
+                            androidx.compose.foundation.layout.PaddingValues(
+                                bottom = bottomContentPadding,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
                     ) {
-                        if (hasTopBarArtwork) {
-                            if (artworkHeaderItemPolicy(artworkGeometry) ==
-                                ArtworkHeaderItemPolicy.UpperAndStickyLower) {
-                                item(key = "artwork-upper") {
-                                    DrillDownArtworkUpperSlice(
-                                        artworkBytes =
-                                            requireNotNull(artworkBytes),
-                                        expandedHeight = expandedArtworkHeight,
-                                        upperSliceHeight = upperSliceHeight,
-                                        albumArtworkLabel = labels.albumArtwork,
+                        item(key = "detail-artwork") {
+                            BoxWithConstraints(
+                                Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                val artworkSize = maxWidth.coerceAtMost(360.dp)
+                                Box(
+                                    Modifier.size(artworkSize)
+                                        .aspectRatio(1f)
+                                        .clip(
+                                            RoundedCornerShape(
+                                                HausShapes.artwork),
+                                        )
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    HausColors.current
+                                                        .primaryAction,
+                                                    HausColors.current
+                                                        .textPrimary,
+                                                ),
+                                            ),
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    ArtworkImage(
+                                        artworkBytes = artworkBytes,
+                                        contentDescription =
+                                            labels.albumArtwork,
+                                        role = ArtworkImageRole.Hero,
+                                        modifier = Modifier.fillMaxSize(),
+                                        fallback = {
+                                            Text(
+                                                text =
+                                                    title.take(2).uppercase(),
+                                                color = Color.White,
+                                                style =
+                                                    HausTypography.pageTitle,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 40.sp,
+                                            )
+                                        },
                                     )
                                 }
                             }
-                            stickyHeader(key = "artwork-lower") {
-                                DrillDownArtworkStickySlice(
-                                    title = title,
-                                    artworkBytes = requireNotNull(artworkBytes),
-                                    expandedHeight = expandedArtworkHeight,
-                                    collapsedHeight = lowerSliceHeight,
-                                    imageOffsetY = lowerSliceImageOffset,
-                                    progress = artworkSnapshot.progress,
-                                    albumArtworkLabel = labels.albumArtwork,
-                                )
-                            }
-                            item(key = "section") {
-                                DrillDownListItem {
-                                    SectionLabel(
-                                        title = title, subtitle = subtitle)
-                                }
-                            }
-                            items(tracks, key = { it.id }) { track ->
-                                DrillDownListItem {
-                                    DrillDownTrackRow(
-                                        track = track,
-                                        isNowPlaying =
-                                            track.id == selectedTrackId,
-                                        selectionModeActive =
-                                            selectionModeActive,
-                                        isSelected =
-                                            track.id in selectedTrackIds,
-                                        onSelected = {
-                                            selectedTrackId = track.id
-                                        },
-                                        orderedTracks = tracks,
-                                        labels = labels,
-                                        artworkLoader = artworkLoader,
-                                        onPlayTrack = onPlayTrack,
-                                        onToggleSelection = onToggleSelection,
-                                        onStartSelection = onStartSelection,
-                                        favorite = track.id in favoriteTrackIds,
-                                        onSetFavorite = { favorite ->
-                                            onSetTrackFavorite(
-                                                track.id, favorite)
-                                        },
-                                        onEditMetadata =
-                                            onEditTrackMetadata?.let { edit ->
-                                                { edit(track.id) }
-                                            },
-                                    )
-                                }
-                            }
-                            item(key = "now-playing-spacer") {
-                                Spacer(Modifier.height(bottomContentPadding))
-                            }
-                        } else {
-                            item {
-                                SectionLabel(title = title, subtitle = subtitle)
-                            }
-                            items(tracks, key = { it.id }) { track ->
-                                DrillDownTrackRow(
-                                    track = track,
-                                    isNowPlaying = track.id == selectedTrackId,
-                                    selectionModeActive = selectionModeActive,
-                                    isSelected = track.id in selectedTrackIds,
-                                    onSelected = { selectedTrackId = track.id },
-                                    orderedTracks = tracks,
-                                    labels = labels,
-                                    artworkLoader = artworkLoader,
-                                    onPlayTrack = onPlayTrack,
-                                    onToggleSelection = onToggleSelection,
-                                    onStartSelection = onStartSelection,
-                                    favorite = track.id in favoriteTrackIds,
-                                    onSetFavorite = { favorite ->
-                                        onSetTrackFavorite(track.id, favorite)
+                        }
+                        item(key = "detail-summary") {
+                            SectionLabel(title = subtitle, subtitle = null)
+                        }
+                        items(tracks, key = { it.id }) { track ->
+                            DrillDownTrackRow(
+                                track = track,
+                                isNowPlaying = track.id == selectedTrackId,
+                                selectionModeActive = selectionModeActive,
+                                isSelected = track.id in selectedTrackIds,
+                                onSelected = { selectedTrackId = track.id },
+                                orderedTracks = tracks,
+                                labels = labels,
+                                artworkLoader = artworkLoader,
+                                onPlayTrack = onPlayTrack,
+                                onToggleSelection = onToggleSelection,
+                                onStartSelection = onStartSelection,
+                                favorite = track.id in favoriteTrackIds,
+                                onSetFavorite = { favorite ->
+                                    onSetTrackFavorite(track.id, favorite)
+                                },
+                                onEditMetadata =
+                                    onEditTrackMetadata?.let { edit ->
+                                        { edit(track.id) }
                                     },
-                                    onEditMetadata =
-                                        onEditTrackMetadata?.let { edit ->
-                                            { edit(track.id) }
-                                        },
-                                )
-                            }
-                            item {
-                                Spacer(Modifier.height(bottomContentPadding))
-                            }
+                            )
                         }
                     }
                 }
@@ -371,38 +283,6 @@ public fun DrillDownView(
             listState = listState,
             modifier = Modifier.align(Alignment.CenterEnd),
         )
-        if (scrollOwner == DrillDownScrollOwner.Artwork) {
-            DrillDownArtworkBackButton(
-                progress = artworkSnapshot.progress,
-                onBack = onBack,
-                modifier = Modifier.align(Alignment.TopStart),
-            )
-        } else {
-            DrillDownMiuixScrollChrome(
-                scrollBehavior = miuixScrollBehavior,
-                title = title,
-                onBack = onBack,
-                backdrop = drillDownBackdrop,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DrillDownListItem(
-    bottomGap: Dp = ArtworkDrillDownListSpacing.itemGapDp.dp,
-    content: @Composable () -> Unit,
-) {
-    Box(
-        modifier =
-            Modifier.fillMaxWidth()
-                .padding(
-                    horizontal =
-                        ArtworkDrillDownListSpacing.horizontalPaddingDp.dp)
-                .padding(bottom = bottomGap),
-    ) {
-        content()
     }
 }
 

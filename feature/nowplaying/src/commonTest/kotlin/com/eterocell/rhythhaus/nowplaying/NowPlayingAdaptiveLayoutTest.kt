@@ -47,4 +47,12 @@ public class NowPlayingAdaptiveLayoutTest {
         assertFalse(nowPlayingQueueSidebarFor(1_015f))
         assertTrue(nowPlayingQueueSidebarFor(1_016f))
     }
+
+    @Test
+    public fun compactShortHeightPrioritizesControlsOverArtwork(): Unit {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Compact,
+            nowPlayingAdaptiveLayoutModeFor(360f, 640f),
+        )
+    }
 }

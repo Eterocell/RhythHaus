@@ -22,9 +22,9 @@ sealed interface LibraryRoute {
 
     data object Settings : LibraryRoute
 
-    data object SettingsAbout : LibraryRoute
+    data class SettingsAbout(val title: String) : LibraryRoute
 
-    data object OpenSourceLibraries : LibraryRoute
+    data class OpenSourceLibraries(val title: String) : LibraryRoute
 
     data object ClearLibraryDialog : LibraryRoute
 
@@ -58,12 +58,18 @@ internal fun primaryDestinationFor(
 
         LibraryRoute.NowPlaying,
         LibraryRoute.Settings,
-        LibraryRoute.SettingsAbout,
-        LibraryRoute.OpenSourceLibraries,
+        is LibraryRoute.SettingsAbout,
+        is LibraryRoute.OpenSourceLibraries,
         LibraryRoute.ClearLibraryDialog,
         is LibraryRoute.Onboarding,
         -> null
     }
+
+internal fun LibraryRoute.isToolRoute(): Boolean =
+    this == LibraryRoute.Settings ||
+        this is LibraryRoute.SettingsAbout ||
+        this is LibraryRoute.OpenSourceLibraries ||
+        this is LibraryRoute.Onboarding
 
 enum class OnboardingLaunchMode {
     FirstRun,
@@ -102,8 +108,8 @@ fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = false
 fun routePermitsNowPlayingBar(route: LibraryRoute): Boolean =
     when (route) {
         LibraryRoute.Settings,
-        LibraryRoute.SettingsAbout,
-        LibraryRoute.OpenSourceLibraries,
+        is LibraryRoute.SettingsAbout,
+        is LibraryRoute.OpenSourceLibraries,
         is LibraryRoute.Onboarding,
         -> false
 

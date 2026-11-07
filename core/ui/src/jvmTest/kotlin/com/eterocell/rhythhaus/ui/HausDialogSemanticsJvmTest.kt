@@ -1,7 +1,14 @@
 package com.eterocell.rhythhaus.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
@@ -23,11 +31,107 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class HausDialogSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun focusedOverlayAvoidsKeyboardWithoutResizingCoveredRoute() =
+        runComposeUiTest {
+            val imeBottomInset = mutableStateOf(0.dp)
+            lateinit var publisher: HausWindowOverlayPublisher
+            var coveredRouteHeight = 0
+            var draft by mutableStateOf("")
+
+            setContent {
+                Box(Modifier.size(600.dp)) {
+                    HausWindowOverlayHostContent(
+                        modifier = Modifier.fillMaxSize(),
+                        imeBottomInset = imeBottomInset.value,
+                    ) {
+                        publisher =
+                            checkNotNull(
+                                LocalHausWindowOverlayPublisher.current)
+                        Box(
+                            Modifier.fillMaxSize().onSizeChanged {
+                                coveredRouteHeight = it.height
+                            },
+                        ) {
+                            Button(
+                                modifier =
+                                    Modifier.testTag("ime-overlay-invoker"),
+                                onClick = {
+                                    publisher.publish(
+                                        {
+                                            HausDialog(
+                                                title = "Edit item",
+                                                dismissLabel = "Close",
+                                                onDismiss = {
+                                                    publisher.publish(
+                                                        null, null)
+                                                },
+                                                body = {
+                                                    Column {
+                                                        TextField(
+                                                            value = draft,
+                                                            onValueChange = {
+                                                                draft = it
+                                                            },
+                                                            modifier =
+                                                                Modifier
+                                                                    .testTag(
+                                                                        "ime-overlay-editor"),
+                                                        )
+                                                        Spacer(
+                                                            Modifier.height(
+                                                                500.dp))
+                                                    }
+                                                },
+                                                actions = {
+                                                    Button(
+                                                        modifier =
+                                                            Modifier.testTag(
+                                                                "ime-overlay-confirm",
+                                                            ),
+                                                        onClick = {},
+                                                    ) {
+                                                        Text("Confirm")
+                                                    }
+                                                },
+                                            )
+                                        },
+                                        null,
+                                    )
+                                },
+                            ) {
+                                Text("Edit")
+                            }
+                        }
+                    }
+                }
+            }
+
+            onNodeWithTag("ime-overlay-invoker").performClick()
+            waitForIdle()
+            val originalCoveredHeight = coveredRouteHeight
+
+            imeBottomInset.value = 200.dp
+            waitForIdle()
+
+            assertEquals(originalCoveredHeight, coveredRouteHeight)
+            val confirmationBounds =
+                onNodeWithTag("ime-overlay-confirm")
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertTrue(
+                confirmationBounds.bottom <= originalCoveredHeight - 200f)
+            onNodeWithTag("ime-overlay-editor").assertExists()
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun dismissSemanticsPreservesLabelAndInvokesTheExistingDismissCallbackOnce() =

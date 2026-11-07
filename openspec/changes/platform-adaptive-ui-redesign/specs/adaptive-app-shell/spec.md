@@ -36,6 +36,25 @@ The shell SHALL provide one measured header for ordinary routes that need a titl
 - **WHEN** the available width crosses a shell breakpoint or system text scale changes
 - **THEN** the header SHALL recompute one common height for all routes in that layout/text class and keep its required actions reachable
 
+### Requirement: Tool routes retain feature-localized titles
+Settings SHALL provide the localized About and open-source-license titles through its existing
+route callbacks. Shared SHALL store each title in its destination route and render the common header
+without importing or duplicating Settings resources. Tool routes SHALL remain outside primary
+destination selection.
+
+#### Scenario: About tool route navigation
+- **WHEN** Settings opens About or the open-source-license page in any supported locale
+- **THEN** Shared SHALL render the matching feature-localized title and route Back action
+- **AND** Library, Search, and Playlists SHALL remain unselected
+
+### Requirement: Playlist routes use Shared route chrome
+Playlist hub, saved-playlist detail, and smart-playlist detail routes SHALL use the Shared header for localized title and route Back. Playlist feature screens SHALL NOT render duplicate route title/Back toolbars. Existing playlist actions and state remain feature-owned. Global Settings SHALL remain outside primary navigation.
+
+#### Scenario: Playlist routes across layout classes
+- **WHEN** the playlist hub, saved detail, or smart detail is active in compact, rail, or sidebar layout
+- **THEN** Shared SHALL provide the sole route title and Back action
+- **AND** Settings SHALL remain reachable in the compact header or wide navigation chrome without becoming a primary destination
+
 ### Requirement: Route transitions preserve one current safe-area rectangle
 Visible application content and app-owned chrome SHALL use the current window-safe rectangle consistently before, during, and after route transitions. Intentional content translation MAY animate, but route animation SHALL NOT change the measured safe rectangle.
 

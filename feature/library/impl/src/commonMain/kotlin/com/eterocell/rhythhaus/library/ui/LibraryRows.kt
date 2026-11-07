@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -187,25 +188,6 @@ internal fun trackRowMetadataColor(
 ): Color =
     if (isNowPlaying || isSelected) palette.textPrimary
     else palette.textSecondary
-
-@Composable
-internal fun HeaderSection(title: String, subtitle: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = title,
-            color = HausColors.current.textPrimary,
-            style = HausTypography.pageTitle,
-        )
-        Text(
-            text = subtitle,
-            color = HausColors.current.textSecondary,
-            style = HausTypography.body,
-        )
-    }
-}
 
 @Composable
 internal fun ImportAudioCard(
@@ -662,7 +644,10 @@ internal fun BrowseModePicker(
         }
     } else {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier.fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .testTag("library-browse-mode-row"),
             horizontalArrangement = Arrangement.spacedBy(HausSpacing.xs),
         ) {
             BrowseMode.entries.forEach { mode ->
@@ -670,7 +655,7 @@ internal fun BrowseModePicker(
                     mode = mode,
                     isSelected = browseMode == mode,
                     compact = false,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.widthIn(min = 176.dp),
                     onModeChange = onModeChange,
                 )
             }

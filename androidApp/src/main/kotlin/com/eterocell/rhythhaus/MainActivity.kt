@@ -11,12 +11,14 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermissionController =
         AndroidNotificationPermissionController(this)
-    private val mediaStorePermissionController =
-        AndroidMediaStoreAudioPermissionController(this)
+    private lateinit var mediaStorePermissionController:
+        AndroidMediaStoreAudioPermissionController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        mediaStorePermissionController =
+            AndroidMediaStoreAudioPermissionController(this)
         notificationPermissionController.refresh()
         notificationPermissionController.requestPermissionOnLaunchIfNeeded()
         mediaStorePermissionController.refresh()

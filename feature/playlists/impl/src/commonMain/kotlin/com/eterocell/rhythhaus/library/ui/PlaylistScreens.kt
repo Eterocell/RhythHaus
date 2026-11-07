@@ -8,16 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -649,12 +645,10 @@ public fun PlaylistHubScreen(
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
-    playlistsLabel: String,
     loadingLabel: String,
     loadFailedLabel: String,
     retryLabel: String,
     mutationFailedLabel: String,
-    onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
     libraryTracks: List<LibraryTrack>,
@@ -675,7 +669,7 @@ public fun PlaylistHubScreen(
         mutableStateOf<PlaylistDismissalAppearance?>(null)
     }
     val routePresentation = playlistRoutePresentation(state)
-    PlaylistScreenFrame(title = playlistsLabel, onBack = onBack) {
+    PlaylistScreenFrame {
         if (state.isLoading && !state.hasConfirmedSnapshot) {
             item(key = "loading") {
                 EmptyPlaylistMessage(loadingLabel)
@@ -942,7 +936,6 @@ public fun PlaylistDetailScreen(
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
     mutationFailedLabel: String,
-    onBack: () -> Unit,
     onRetry: () -> Unit,
     onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onDelete: ((PlaylistStateAction) -> Unit) -> Unit,
@@ -1051,10 +1044,6 @@ public fun PlaylistDetailScreen(
             )
         }
     PlaylistScreenFrame(
-        title = playlist.name,
-        onBack = onBack,
-        editMode = editMode,
-        onOutsideEditTap = { editMode = false },
         listState = listState,
         beforeList = {
             if (editMode) {
@@ -1629,68 +1618,19 @@ public fun PlaylistTrackBrowserOverlay(
 
 @Composable
 internal fun PlaylistScreenFrame(
-    title: String,
-    onBack: () -> Unit,
     beforeList: (@Composable () -> Unit)? = null,
-    editMode: Boolean = false,
-    onOutsideEditTap: () -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    val topPadding =
-        playlistSystemBarTopPadding() +
-            PlaylistScreenLayoutPolicy.additionalTopPadding
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = HausColors.current.background) {
             Column(
-                modifier =
-                    Modifier.fillMaxSize()
-                        .padding(
-                            horizontal =
-                                PlaylistScreenLayoutPolicy.horizontalPadding)
-                        .padding(top = topPadding),
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement =
                     Arrangement.spacedBy(
                         PlaylistScreenLayoutPolicy.itemSpacing),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(
-                            onClick = onBack,
-                            minWidth = 44.dp,
-                            minHeight = 44.dp,
-                            backgroundColor = Color.Transparent,
-                            modifier = Modifier.testTag("playlist-back"),
-                        ) {
-                            Text(
-                                "‹",
-                                fontSize = 30.sp,
-                                color = HausColors.current.textPrimary)
-                        }
-                        Box(
-                            Modifier.weight(1f)
-                                .height(44.dp)
-                                .testTag("playlist-toolbar-title")
-                                .then(
-                                    if (editMode) {
-                                        Modifier.hausClickable(onOutsideEditTap)
-                                    } else {
-                                        Modifier
-                                    },
-                                ),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            Text(
-                                title,
-                                color = HausColors.current.textPrimary,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                        }
-                    }
                 if (beforeList != null) {
                     Box(
                         Modifier.fillMaxWidth()
@@ -1883,13 +1823,6 @@ private fun PlaylistEntryRow(
 private fun playlistFormatDuration(totalSeconds: Int): String {
     val safeSeconds = maxOf(0, totalSeconds)
     return "${safeSeconds / 60}:${(safeSeconds % 60).toString().padStart(2, '0')}"
-}
-
-@Composable
-private fun playlistSystemBarTopPadding(): Dp {
-    val status = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val system = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
-    return maxOf(status.value, system.value).dp
 }
 
 @Composable

@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
@@ -365,14 +364,6 @@ class LibraryNavigationTest {
     }
 
     @Test
-    fun libraryHomeTopContentPaddingPreservesSystemBarInset() {
-        assertEquals(
-            37.dp,
-            libraryHomeTopContentPadding(systemBarTopPadding = 37.dp),
-        )
-    }
-
-    @Test
     fun rootStackStartsAtHomeAndCannotPopPastHome() {
         val stack = LibraryNavigationStack()
 
@@ -430,11 +421,11 @@ class LibraryNavigationTest {
         val stack =
             LibraryNavigationStack()
                 .push(LibraryRoute.Settings)
-                .push(LibraryRoute.SettingsAbout)
-                .push(LibraryRoute.OpenSourceLibraries)
+                .push(LibraryRoute.SettingsAbout("关于"))
+                .push(LibraryRoute.OpenSourceLibraries("开源许可"))
 
-        assertEquals(LibraryRoute.OpenSourceLibraries, stack.current)
-        assertEquals(LibraryRoute.SettingsAbout, stack.pop().current)
+        assertEquals(LibraryRoute.OpenSourceLibraries("开源许可"), stack.current)
+        assertEquals(LibraryRoute.SettingsAbout("关于"), stack.pop().current)
         assertEquals(LibraryRoute.Settings, stack.pop().pop().current)
         assertEquals(LibraryRoute.Home, stack.pop().pop().pop().current)
     }
@@ -484,8 +475,9 @@ class LibraryNavigationTest {
             primaryDestinationFor(LibraryRoute.PlaylistDetail("playlist-1")),
         )
         assertNull(primaryDestinationFor(LibraryRoute.Settings))
-        assertNull(primaryDestinationFor(LibraryRoute.SettingsAbout))
-        assertNull(primaryDestinationFor(LibraryRoute.OpenSourceLibraries))
+        assertNull(primaryDestinationFor(LibraryRoute.SettingsAbout("关于")))
+        assertNull(
+            primaryDestinationFor(LibraryRoute.OpenSourceLibraries("开源许可")))
         assertNull(primaryDestinationFor(LibraryRoute.NowPlaying))
     }
 
@@ -999,8 +991,9 @@ class LibraryNavigationTest {
     @Test
     fun settingsInformationRoutesSuppressNowPlayingBar() {
         assertFalse(routePermitsNowPlayingBar(LibraryRoute.Settings))
-        assertFalse(routePermitsNowPlayingBar(LibraryRoute.SettingsAbout))
-        assertFalse(routePermitsNowPlayingBar(LibraryRoute.OpenSourceLibraries))
+        assertFalse(routePermitsNowPlayingBar(LibraryRoute.SettingsAbout("关于")))
+        assertFalse(
+            routePermitsNowPlayingBar(LibraryRoute.OpenSourceLibraries("开源许可")))
     }
 
     @Test
@@ -1037,7 +1030,7 @@ class LibraryNavigationTest {
                 LibraryRoute.Settings, existingVisibility = true))
         assertFalse(
             shouldShowNowPlayingBar(
-                LibraryRoute.SettingsAbout, existingVisibility = true))
+                LibraryRoute.SettingsAbout("关于"), existingVisibility = true))
     }
 
     @Test

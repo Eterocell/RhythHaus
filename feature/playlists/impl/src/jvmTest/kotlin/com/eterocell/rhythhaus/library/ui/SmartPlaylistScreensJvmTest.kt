@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -133,12 +134,10 @@ class SmartPlaylistScreensJvmTest {
                                 rememberPlaylistFeatureAppearanceSource(
                                     destination),
                             dismissalPublisher = noDismissalPublisher(),
-                            playlistsLabel = "Playlists",
                             loadingLabel = "Loading",
                             loadFailedLabel = "Failed",
                             retryLabel = "Retry",
                             mutationFailedLabel = "Failed",
-                            onBack = {},
                             onOpenPlaylist = {},
                             onCreate = { _, _ -> },
                             libraryTracks = emptyList(),
@@ -220,12 +219,10 @@ class SmartPlaylistScreensJvmTest {
                                 rememberPlaylistFeatureAppearanceSource(
                                     destination),
                             dismissalPublisher = noDismissalPublisher(),
-                            playlistsLabel = "Playlists",
                             loadingLabel = "Loading",
                             loadFailedLabel = "Failed",
                             retryLabel = "Retry",
                             mutationFailedLabel = "Failed",
-                            onBack = {},
                             onOpenPlaylist = {},
                             onCreate = { _, _ -> },
                             libraryTracks = tracks,
@@ -388,7 +385,6 @@ class SmartPlaylistScreensJvmTest {
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = noDismissalPublisher(),
                     mutationFailedLabel = "Failed",
-                    onBack = {},
                     onRetry = {},
                     onUpdate = { _, _, _ -> },
                     onDelete = {},
@@ -553,6 +549,82 @@ class SmartPlaylistScreensJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun smartRuleLongCandidatesKeepSaveReachableAfterViewportReflow() =
+        runComposeUiTest {
+            val originalLocale = Locale.getDefault()
+            Locale.setDefault(Locale.ENGLISH)
+            try {
+                val tracks =
+                    List(32) { index ->
+                        val id = index.toString().padStart(2, '0')
+                        LibraryTrack(
+                            "candidate-$id",
+                            "source",
+                            "candidate-$id",
+                            AudioSource.FilePath("candidate-$id.mp3"),
+                            "candidate-$id.mp3",
+                            "Candidate $id",
+                            "Candidate artist $id",
+                            "Candidate album $id",
+                            1_000,
+                            100,
+                            null,
+                            null,
+                            1,
+                            1,
+                        )
+                    }
+                val lastArtist = "Candidate artist 31"
+                var width by mutableStateOf(390.dp)
+                var draft by
+                    mutableStateOf(
+                        SmartDraft(PlaylistDismissalAppearance("reflow")))
+                var confirmed: SmartDraft? = null
+                setContent {
+                    BoxWithConstraints(
+                        Modifier.size(width, 640.dp),
+                    ) {
+                        SmartRuleDialog(
+                            draft = draft,
+                            libraryTracks = tracks,
+                            snapshot = PlaylistSnapshot(),
+                            title = "Create smart playlist",
+                            onChange = { draft = it },
+                            onDismiss = {},
+                            onConfirm = { confirmed = draft },
+                        )
+                    }
+                }
+                onAllNodes(hasTestTag("smart-playlist-name"))[0]
+                    .performTextInput("Long rule")
+                onAllNodes(hasText("Artist"))[0].performClick()
+                onAllNodes(hasText(lastArtist))[0].performScrollTo()
+                onAllNodes(hasText(lastArtist))[0].performClick()
+                assertEquals(
+                    SmartPlaylistRule.Artist("Candidate artist 31"),
+                    draft.rule,
+                )
+                width = 900.dp
+                waitForIdle()
+                assertEquals("Long rule", draft.name)
+                assertEquals(
+                    SmartPlaylistRule.Artist("Candidate artist 31"),
+                    draft.rule,
+                )
+                onAllNodes(hasText("Save"))[0].assertIsDisplayed()
+                onAllNodes(hasText("Cancel"))[0].assertIsDisplayed()
+                onAllNodes(hasText("Save"))[0].performClick()
+                assertEquals(
+                    SmartPlaylistRule.Artist("Candidate artist 31"),
+                    confirmed?.rule,
+                )
+            } finally {
+                Locale.setDefault(originalLocale)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun smartDetailEditKeepsOnePendingUpdateAndIgnoresDismissedCallback() =
         runComposeUiTest {
             val oldLocale = Locale.getDefault()
@@ -602,7 +674,6 @@ class SmartPlaylistScreensJvmTest {
                                     destination),
                             dismissalPublisher = publisher,
                             mutationFailedLabel = "Failed",
-                            onBack = {},
                             onRetry = {},
                             onUpdate = { name, rule, done ->
                                 requests += name to rule
@@ -731,7 +802,6 @@ class SmartPlaylistScreensJvmTest {
                                     destination),
                             dismissalPublisher = publisher,
                             mutationFailedLabel = "Failed",
-                            onBack = {},
                             onRetry = {},
                             onUpdate = { _, _, _ -> },
                             onDelete = { requests += it },

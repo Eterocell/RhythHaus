@@ -186,7 +186,7 @@ public fun DrillDownView(
 )
 ```
 
-The twelve labels and ownership are: Shared supplies `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`, `libraryTitle`, `albumArt`, `albumArtwork`, `nowPlayingBadge`, `selectTrack`, and `trackArtistAlbum`; the feature supplies the default `addFavorite` and `removeFavorite` formatters. There are no playlist-only injected labels.
+The original Studio review-remediation baseline declared twelve labels. The later approved `platform-adaptive-ui-redesign` route-header contract supersedes only injected-label membership for `LibrarySharedLabels`: `libraryTitle` is supplied by the Shared route header and is removed from the feature label data class. The current eleven labels are `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`, `albumArt`, `albumArtwork`, `nowPlayingBadge`, `selectTrack`, `trackArtistAlbum`, `addFavorite`, and `removeFavorite`. Shared supplies the first nine; Library supplies the default `addFavorite` and `removeFavorite` formatters. There are no playlist-only injected labels.
 
 ## 5. Acceptance criteria
 

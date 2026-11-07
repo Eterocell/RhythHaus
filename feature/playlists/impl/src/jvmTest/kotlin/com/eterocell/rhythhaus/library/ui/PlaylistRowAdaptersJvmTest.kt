@@ -438,7 +438,6 @@ class PlaylistRowAdaptersJvmTest {
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = silentPublisher(),
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onRetry = {},
                     onRename = { _, _ -> },
                     onDelete = {},

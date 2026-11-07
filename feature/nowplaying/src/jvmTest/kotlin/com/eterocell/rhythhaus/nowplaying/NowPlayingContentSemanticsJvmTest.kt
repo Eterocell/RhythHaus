@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
@@ -18,12 +19,15 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
@@ -57,6 +61,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.nowplaying.generated.resources.Res
+import rhythhaus.feature.nowplaying.generated.resources.close_player
 
 private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
 private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
@@ -88,7 +95,10 @@ public class NowPlayingContentSemanticsJvmTest {
                     NowPlayingRepeatTestTag,
                 )) {
                 val pixels =
-                    onNodeWithTag(testTag).captureToImage().toPixelMap()
+                    onNodeWithTag(testTag)
+                        .performScrollTo()
+                        .captureToImage()
+                        .toPixelMap()
                 var onPulsePixels = 0
                 for (y in 0 until pixels.height) {
                     for (x in 0 until pixels.width) {
@@ -483,26 +493,32 @@ public class NowPlayingContentSemanticsJvmTest {
         onAllNodes(hasTestTag(NowPlayingStatusTestTag)).assertCountEquals(1)
         onAllNodes(hasTestTag(NowPlayingTitleTestTag)).assertCountEquals(1)
         onAllNodes(hasTestTag(NowPlayingSubtitleTestTag)).assertCountEquals(1)
-        onNodeWithTag(NowPlayingPreviousTestTag).performClick()
+        onNodeWithTag(NowPlayingPreviousTestTag)
+            .performScrollTo()
+            .performClick()
         waitForIdle()
         val afterPrevious = controller.state.value.currentTrack?.id
         assertEquals(ShuffleMode.Off, controller.state.value.shuffleMode)
         assertEquals("first", afterPrevious)
-        onNodeWithTag(NowPlayingPlayPauseTestTag).performClick()
+        onNodeWithTag(NowPlayingPlayPauseTestTag)
+            .performScrollTo()
+            .performClick()
         waitForIdle()
         val loadCallsAfterPlay = engine.loadCalls
         assertEquals(true, loadCallsAfterPlay > 0)
-        onNodeWithTag(NowPlayingNextTestTag).performClick()
+        onNodeWithTag(NowPlayingNextTestTag).performScrollTo().performClick()
         waitForIdle()
         val afterNext = controller.state.value.currentTrack?.id
         assertEquals("second", afterNext)
-        onNodeWithTag(NowPlayingShuffleTestTag).performClick()
+        onNodeWithTag(NowPlayingShuffleTestTag).performScrollTo().performClick()
         waitForIdle()
-        onNodeWithTag(NowPlayingRepeatTestTag).performClick()
+        onNodeWithTag(NowPlayingRepeatTestTag).performScrollTo().performClick()
         waitForIdle()
-        onNodeWithTag(NowPlayingProgressTestTag).performTouchInput {
-            click(Offset(0f, center.y))
-        }
+        onNodeWithTag(NowPlayingProgressTestTag)
+            .performScrollTo()
+            .performTouchInput {
+                click(Offset(0f, center.y))
+            }
         waitForIdle()
         onNodeWithTag(NowPlayingProgressTestTag).performTouchInput {
             click(Offset(width.toFloat(), center.y))
@@ -575,6 +591,149 @@ public class NowPlayingContentSemanticsJvmTest {
         }
         onNodeWithTag(NowPlayingSplitLayoutTestTag).assertExists()
         onNodeWithTag(NowPlayingCompactLayoutTestTag).assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun compactShortHeightPrioritizesControlsOverArtwork(): Unit =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalDensity provides
+                        androidx.compose.ui.unit.Density(1f, 2f),
+                ) {
+                    Box(Modifier.size(360.dp, 640.dp)) {
+                        NowPlayingContent(
+                            track = displayTrack(),
+                            playbackState = PlaybackState(),
+                            playbackController =
+                                PlaybackController(ImmediatePlaybackEngine()),
+                            labels = recoveryLabels,
+                            artworkLoader = { null },
+                            onBack = {},
+                            sleepTimerState = SleepTimerState(),
+                            onArmSleepTimer = { _, _ -> },
+                            onArmSleepTimerAfterCompletions = { _, _ -> },
+                            onCancelSleepTimer = {},
+                            activePanel = NowPlayingPanel.Controls,
+                            onPanelChange = {},
+                            queueContent = { TestQueueContent {} },
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+            val artwork =
+                onNodeWithTag(NowPlayingArtworkPaneTestTag)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertTrue(artwork.height <= 220f)
+            onNodeWithTag(NowPlayingCompactLayoutTestTag).assertExists()
+            onNodeWithTag(NowPlayingPlayPauseTestTag)
+                .performScrollTo()
+                .assertIsDisplayed()
+                .performClick()
+            onNodeWithTag(NowPlayingNextTestTag)
+                .performScrollTo()
+                .assertIsDisplayed()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun queueSidebarAppearsOnlyWhenEveryPaneFits(): Unit =
+        runComposeUiTest {
+            val controller = PlaybackController(ImmediatePlaybackEngine())
+            val panel = mutableStateOf(NowPlayingPanel.Queue)
+            for ((width, expectsSidebar) in
+                listOf(1_015.dp to false, 1_016.dp to true)) {
+                setContent {
+                    Box(Modifier.size(width, 800.dp)) {
+                        NowPlayingContent(
+                            track = displayTrack(),
+                            playbackState = PlaybackState(),
+                            playbackController = controller,
+                            labels = recoveryLabels,
+                            artworkLoader = { null },
+                            onBack = {},
+                            sleepTimerState = SleepTimerState(),
+                            onArmSleepTimer = { _, _ -> },
+                            onArmSleepTimerAfterCompletions = { _, _ -> },
+                            onCancelSleepTimer = {},
+                            activePanel = panel.value,
+                            onPanelChange = { panel.value = it },
+                            queueContent = { TestQueueContent {} },
+                        )
+                    }
+                }
+                if (expectsSidebar) {
+                    val queueBounds =
+                        onNodeWithTag(NowPlayingQueuePanelTestTag)
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    assertEquals(280f, queueBounds.width)
+                    onNodeWithTag(NowPlayingSplitLayoutTestTag).assertExists()
+                    onNodeWithTag(NowPlayingPlayPauseTestTag)
+                        .assertIsDisplayed()
+                } else {
+                    val queueBounds =
+                        onNodeWithTag(NowPlayingQueuePanelTestTag)
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    assertTrue(queueBounds.width > 280f)
+                    onAllNodes(hasTestTag(NowPlayingSplitLayoutTestTag))
+                        .assertCountEquals(0)
+                    onAllNodes(hasTestTag(NowPlayingPlayPauseTestTag))
+                        .assertCountEquals(0)
+                    onNodeWithText("Queue fixture").assertExists()
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun expandedControlsKeepArtworkInsideSafeAreaAndOfferNamedClose():
+        Unit = runComposeUiTest {
+        var closes = 0
+        var closeLabel = ""
+        setContent {
+            closeLabel = stringResource(Res.string.close_player)
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = PlaybackState(),
+                    playbackController =
+                        PlaybackController(ImmediatePlaybackEngine()),
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = { closes++ },
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
+                )
+            }
+        }
+
+        val root =
+            onNodeWithTag(NowPlayingContentRootTestTag)
+                .fetchSemanticsNode()
+                .boundsInRoot
+        val artwork =
+            onNodeWithTag(NowPlayingArtworkPaneTestTag)
+                .fetchSemanticsNode()
+                .boundsInRoot
+        assertTrue(artwork.top > root.top)
+        assertTrue(artwork.bottom < root.bottom)
+        onNodeWithTag("NowPlayingClose")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+        onNodeWithContentDescription(closeLabel)
+            .assertIsDisplayed()
+            .performClick()
+        assertEquals(1, closes)
     }
 
     @OptIn(ExperimentalTestApi::class)

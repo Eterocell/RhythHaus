@@ -1,3 +1,61 @@
+## Handoff - 2026-11-07 adaptive UI user acceptance and release verification
+
+Route: openspec+superpowers / approved adaptive implementation, user-confirmed manual review, and requested local integration
+Owner: implementation / integration
+Input: user confirmed that the manual device-review checklist is already reviewed, then requested merging the adaptive worktree to `main` and removing it.
+Output:
+- Recorded the user's confirmation in `openspec/changes/platform-adaptive-ui-redesign/tasks.md` for native safe-area/route transition geometry, IME, player/Queue gestures and Back, adaptive layouts/states, localization/text scale/reduced motion, accessibility, appearance, and playback/system behavior. `openspec/changes/theme-selection/tasks.md` Task 5.7 now records the same user-confirmed appearance/device review.
+- This is user-reported acceptance; no per-device/per-state observations, screenshots, or separate evidence artifacts were supplied in this session. Physical system-picker interactions were not included in the checklist and remain unverified.
+- The iOS Release app built from this worktree and was installed on EteroiDevGhFunf: bundle `com.eterocell.RhythHaus`, version `0.2.0`, build `000200`. App launch was not performed in this install step.
+Verification:
+- `./init.sh`: `BUILD SUCCESSFUL` (190 actionable tasks; 25 executed, 165 up-to-date).
+- `openspec validate platform-adaptive-ui-redesign --strict`: valid.
+- `openspec validate theme-selection --strict`: valid.
+- `git diff --check`: pass (no output).
+- `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release -destination 'id=00008160-000814EE0CE00036' -derivedDataPath /tmp/rhythhaus-adaptive-eteroi-release-2 CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=YES build`: exit 0.
+- `xcrun devicectl device install app` and `xcrun devicectl device info apps --bundle-id com.eterocell.RhythHaus`: app installed and reported as RhythHaus 0.2.0 (000200).
+Next owner: integration — commit the approved worktree changes, fast-forward `main`, record final closeout, then remove `.worktrees/platform-adaptive-ui-redesign/` as requested.
+Blockers: system-picker runtime review remains unverified; user-reported review has no itemized device evidence in this handoff. The OpenSpec change remains unarchived.
+
+## Handoff - 2026-11-04 adaptive UI baseline resumed; native Insets remain open
+
+## Handoff - 2026-11-05 adaptive UI Task 4 gesture ownership complete
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved `platform-adaptive-ui-redesign` Task 4 brief; user direction to continue without Android/iOS validation as a prerequisite.
+Output:
+- Implemented Controls-only downward dismissal in Shared/Core UI. The existing `nowPlayingSwipeCollapseAction(appState)` remains the close authority; the recognizer is active only for visible Controls without a protected foreground overlay and is attached to artwork plus a full-width non-interactive leading surface.
+- Queue handle/header dismissal remains local to Queue and returns to Controls. Queue body scrolling/reordering, Lyrics/Timer scrolling, buttons, seek, protected overlays, platform Back, and focus restoration remain owned by their existing surfaces.
+- Added/kept regression coverage for artwork and unused-surface dismissal, threshold/fling, tap/seek preservation, short-drag snap-back, pointer cancellation, Queue body/reorder, Lyrics/Timer, protected overlays, Back precedence, exit input blocking, and accessible close behavior. The leading blank-area fixture now has a real horizontal hit target; the short-drag fixture supplies artwork bytes so its target exists when scrolled into view.
+Verification:
+- `./gradlew :shared:jvmTest --tests '*LibraryAppShellJvmTest' --configuration-cache --console=plain` passed.
+- `./gradlew :feature:nowplaying:jvmTest :core:ui:jvmTest --configuration-cache --console=plain` passed.
+- `./gradlew :feature:playlists:impl:jvmTest --configuration-cache --console=plain` passed.
+- Generated XML totals after the exact rerun: Core UI 46, Shared shell 46, Now Playing 56, Playlists 180; each reports zero failures, errors, and skipped tests.
+- `git diff --check` passed. No temporary gesture probes remain in the affected production files.
+Unverified: Android/iOS native Insets, IME, accessibility, and physical-device acceptance remain user-owned and explicitly unverified. Desktop/runtime evidence does not substitute for those checks.
+Next owner: implementation; continue with approved feature-presentation Task 5 / OpenSpec 4.1. Do not archive or claim manual acceptance; no commit was made.
+Blockers: none for continued implementation. User-only platform acceptance remains open.
+
+Route: openspec+superpowers
+Owner: implementation
+Input: user approved implementation of `platform-adaptive-ui-redesign` and requested committing the local OpenSpec artifacts.
+Output:
+- Committed the OpenSpec change and its linked approved design/prototype/token/plan artifacts as `b9be0c3f` (`docs(openspec): add platform adaptive redesign change`) on local `main`; nothing pushed.
+- Created `.worktrees/platform-adaptive-ui-redesign/`, branch `feature/platform-adaptive-ui-redesign`, based on that commit. The approved plan is unchanged. Production code is unchanged; Task 1 regression tests are uncommitted baseline work in this worktree only.
+- Automated prerequisites completed with exit code 0: `theme-prerequisite-tests`, `theme-openspec-validate`, and `adaptive-baseline-init`. Generated XML before the baseline additions: Core UI JVM 44/44, Settings JVM 53/53, Shared JVM 544/544, iOS simulator 340/340; no failures, errors, or skips. Theme-selection's user-only appearance acceptance remains pending.
+- Added `routeTransitionInsetsRemainStableThroughPushPopAndCancellation`; the fixed-window JVM scenario passes with zero desktop system Insets. It does not reproduce native system-Inset behavior.
+- Added `controlsDownSwipeDismissesToDockWithoutChangingPlayback`; after correcting its missing-artwork fixture, the targeted touch-input test fails at `assertDoesNotExist`, leaving `NowPlayingContentRoot` at 390×768px. The 42-test shell run has 41 passing, this one failing, zero errors/skips.
+- After detecting that an early sample used a non-empty existing home, I stopped it without inspecting track contents and excluded it from evidence. Isolated desktop launches used `/tmp/rhythhaus-adaptive-home.WzNS7P` with a pre-launch exact-HOME assertion and one generated six-second silent fixture; no personal media was imported or played.
+- Actual desktop screenshots/AX snapshots covered Library and expanded Controls at 800×600, 480×760, and 390×768. Artwork-origin downward drags returned to Library at 800×600 and 390×768, with the synthetic fixture still paused and present in the mini-player. These mouse-driven desktop results do not substitute for the failing JVM touch-injection scenario.
+- Root-cause experiment for the JVM gesture mismatch: a temporary sentinel in `VerticalSheetGesture.onDragStart` was not reached with the compact root `Column.verticalScroll` present. With only that scroll modifier temporarily removed, the identical injected touch reached the sentinel and failed there. Both probes were reverted; compact scrolling and the production recognizer are restored unchanged. This establishes a touch-recognizer competition in the test path, not that removing user-visible scrolling is an acceptable product fix.
+- Latest automated evidence: `:shared:jvmTest --tests '*LibraryAppShellJvmTest'` remains 41/42, with only `controlsDownSwipeDismissesToDockWithoutChangingPlayback` failing at `NowPlayingContentRoot.assertDoesNotExist`; the route-transition geometry scenario passes only with zero desktop system Insets. `:feature:nowplaying:jvmTest` passes; its XML reports 21 tests, 0 failures/errors/skips.
+- iOS simulator build/install/launch and a first-screen screenshot succeeded, showing native status chrome above Compose content. The project has no iOS UI-test target; the Simulator GUI and touch driver are absent. Android AVD booted, but the app did not reach foreground because `MainActivity` called `Context.checkPermission()` with a null base context. No physical device was touched.
+- A previous Orca interruption coincided with lock-state queries returning `CGSSessionScreenIsLocked=true`; the user states they did not lock macOS. The cause of that signal/AX interruption is unknown and is not attributed to the user. On the next resume `IOConsoleLocked=false`, and Orca interaction succeeded. Task 1 remains open: native Insets/IME/transition behavior and some nested/cancellation paths are not evidenced. No production code changed and no OpenSpec checkbox was marked complete.
+Next owner: implementation; continue the approved dependency-ordered plan from the isolated desktop evidence. Do not infer native Android/iOS behavior from desktop results.
+Blockers: iOS has no installed Simulator GUI/touch driver; the Android AVD app still fails before foreground. Native Insets/IME and user-owned device acceptance remain open. Full execution evidence is in `.superpowers/sdd/2026-10-30-platform-adaptive-ui-redesign/progress.md`.
+
 ## Handoff - 2026-11-03 theme-selection final review and verification
 
 Route: openspec+superpowers
@@ -453,6 +511,71 @@ Next owner: implementation for Task 2.2.
 Blockers: Task 2.2+, OpenSpec 3.1/3.2/3.3, and broader platform verification remain pending. Earlier desktop compile and Android assemble passed, but are not broader acceptance. A separate shared iOS simulator verification was not completed after the user terminated the stuck agent lane; only `:core:model` iOS simulator tests passed. `./init.sh` remains intentionally not rerun after the prior user-directed stop beyond 9000 seconds; the full platform matrix is unclaimed.
 
 # Session Progress
+
+## Platform-adaptive UI redesign — Task 5 Library/Search — 2026-11-05
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Task 5 / OpenSpec 4.1 brief.
+
+Output:
+- Migrated ordinary Library Home, album/artist detail, and Search route title/Back chrome to the Shared header. Shared retains route, Back, selection, scroll, and playback ownership; feature callbacks remain authoritative. The Shared Settings action is a route-header action on migrated compact routes; routes that retain feature-owned chrome continue using the existing top-edge action.
+- Removed the duplicate Home/Search title bars. Home keeps its track-count summary; album/artist detail keeps a bounded artwork hero and distinct localized count/artist summary. The old artwork-collapse title/back implementation and its tests were removed. Shared body frame supplies responsive page margins.
+- Wide six-mode browsing is horizontally scrollable with 176dp destinations; compact mode retains the existing primary/overflow split. Added 48dp minimums to metadata editor actions and sized its dialog against available Compose window constraints so the form scrolls while Save/Cancel remain fixed.
+- Search's public localized-label boundary no longer takes a route title; Shared's route header supplies title/Back. Search's playback completion callback remains and is still invoked after ordered-result playback requests.
+- Updated the active feature architecture spec, `docs/architecture.md`, and ADR 0001 for Search/header ownership, the current eleven `LibrarySharedLabels` members, and the renamed detail artwork input. Older archived designs and the original approved design history remain unchanged.
+
+Verification:
+- `./gradlew :feature:library:impl:jvmTest :feature:library:impl:allTests :feature:search:jvmTest :shared:jvmTest --configuration-cache --console=plain` passed. Final XML totals: Library JVM 188 passed; Library iOS simulator 82 passed; Search JVM 22 passed; Shared JVM 559 passed; failures/errors/skips are zero in every report.
+- Consumer regressions cover all six browse modes, active filters and filtered-empty state, long/missing-art album cards, final-row scrolling after resize at 200% text, metadata draft reset/cancel/failure, Search query/zero results and query/scroll retention through resize/theme, Simplified Chinese no-match at 200%, no duplicate feature-owned Search Back, and Shared route Search header/title/Back/focus.
+- `./gradlew architectureCheck --configuration-cache --console=plain` passed. `openspec validate platform-adaptive-ui-redesign --strict` passed. `git diff --check` passed.
+- Updated desktop smoke attempt: `:desktopApp:run` launched as PID 65733 in an 800×600 RhythHaus window after the init script printed `RHYTHHAUS_SMOKE_HOME=/tmp/rhythhaus-adaptive-home.WzNS7P`; that HOME contained only the existing synthetic `adaptive-ui-test.mp3` fixture. Orca AX returned `permission_denied` (“visible windows but no accessibility window”); `screencapture -l 12741 -x /tmp/rhythhaus-task5-desktop.png` failed with “could not create image from window”. I stopped the smoke process. No route interaction or visual result is claimed; no permissions/security settings were changed.
+- Android/iOS native route visuals, physical-device accessibility, and audio/user acceptance remain user-owned and unverified. Earlier emulator verification covered native safe-area/IME Search only; it does not close broader Task 1 acceptance. Desktop visual route acceptance also remains unverified due to the recorded AX/screenshot blocker.
+
+Next owner: implementation — Task 4.2 completed; continue approved Task 5 (Now Playing), then later tasks in dependency order. OpenSpec 4.1–4.3 are checked; Task 1 and Tasks 5–6 remain open.
+Blockers: none for continued implementation.
+Commit: none; the approved redesign remains in its isolated worktree.
+
+## Platform-adaptive UI redesign — Task 4.2 playlists and documents — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Task 4.2 / OpenSpec 4.2 brief.
+Output:
+- Shared supplies measured title/Back chrome for playlist hub, saved-playlist detail, and smart-playlist detail. Feature screens no longer accept route-level Back callbacks or render duplicate route title/Back toolbars. Compact Settings is a Shared header action; wide Settings remains in navigation chrome.
+- Playlist content and row actions, edit/delete/reorder state, smart-rule drafts/dialogs, queue-save occurrence snapshots, document controller state, and destination-scoped dismissal remain owned by their existing feature/controller authorities.
+- Added Shared route coverage for hub/static/smart titles, Back, absence of feature toolbar tags, compact Settings, and wide navigation Settings.
+- Smart-rule coverage reaches the final artist, album, and saved-playlist candidates at 200% text with Save/Cancel available; resize coverage preserves the rule draft and action reachability.
+- Queue-save coverage preserves the typed name and frozen duplicate occurrence IDs across track replacement and compact-to-wide resize.
+- Shared document-host coverage includes cancellation, a confirmable preview, stale revision rejection, preview dismissal, and read failure. Stale confirmation never executes the repository import block and leaves the live confirmed snapshot unchanged.
+Verification:
+- `./gradlew :feature:playlists:impl:jvmTest :feature:playlists:impl:allTests :shared:jvmTest --configuration-cache --console=plain` passed.
+- Fresh XML totals: Playlists JVM 181, Playlists iOS simulator 101, Shared JVM 560; zero failures, errors, or skips.
+- `./gradlew architectureCheck --configuration-cache --console=plain` passed. `openspec validate platform-adaptive-ui-redesign --strict` passed. `git diff --check` passed.
+- Native device/file-picker execution was not performed; Android document MIME mappings and UI behavior have automated coverage only. Desktop visual route acceptance remains unverified because the prior isolated launch had Orca AX denial and window capture failure.
+Next owner: implementation — continue approved Task 5, Now Playing.
+Blockers: none for continued implementation; user-owned device/visual acceptance remains open.
+Commit: none; the adaptive redesign remains active in its isolated worktree.
+
+## Platform-adaptive UI redesign — Task 5.1 Now Playing — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved plan Task 7 / OpenSpec Task 5.1.
+Output:
+- Compact Controls now bounds the square artwork using safe content width/height and live system font scale; controls remain in their existing vertical scroll owner. Wide artwork keeps its existing split-column geometry.
+- Queue moves to the wide sidebar only when 1016dp safe width fits the two minimum control/artwork columns, gaps/padding, and 280dp queue. Below that boundary it uses the existing full player panel.
+- Existing Queue row reorder/save, Lyrics scroll/timed highlighting, Timer modes/fade/cancel, playback error recovery, favorite, and Shared Controls-only dismissal owners remain unchanged.
+- Added consumer regressions for 360×640dp compact Controls at 200% text (artwork cap and reachable Play/Next after scrolling) and live Queue layout at 1015/1016dp (compact panel versus measured 280dp sidebar with Controls still present).
+Verification:
+- `./gradlew :feature:nowplaying:jvmTest :feature:nowplaying:allTests --configuration-cache` passed.
+- XML totals: Now Playing JVM 59, Android host 13, iOS simulator 13; zero failures/errors/skips.
+- `./gradlew :shared:jvmTest --tests '*LibraryAppShellJvmTest' --configuration-cache` passed; XML 47 tests, zero failures/errors/skips.
+- Desktop launch attempt used the asserted synthetic HOME and printed `RHYTHHAUS_SMOKE_HOME=/tmp/rhythhaus-adaptive-home.WzNS7P`; the `:desktopApp:run` launcher exited after Gradle completed before Orca could observe a live Java window. No player, playback, or gesture interaction is claimed. No personal audio or library was used.
+- Android/iOS/macOS visual, accessibility, system-Inset and audio acceptance remain user-owned and unverified; broader Task 1 matrix remains open.
+Next owner: implementation — continue approved Task 5.2 (Settings, onboarding, About, and desktop feedback).
+Blockers: no automated blocker; desktop player runtime smoke remains unverified because the process did not present a window to Orca during the launch session.
+Commit: none; the adaptive redesign remains active in its isolated worktree.
 
 ## Handoff - 2026-07-31 Task 1.4 final acceptance
 
@@ -5157,3 +5280,216 @@ Output: fast-forwarded `main` from `8ef6c272` to `35ef3c90`; change and four can
 Local state: the pre-existing staged `WATCHDOG.yml` was restored unchanged after the integration check. The original 11-line progress addition is included in the merged progress history. No push was performed; after this handoff record, `main` is ahead of `origin/main` by eight commits.
 Cleanup: removed `.worktrees/studio-ui-review-remediation` after the successful merged verification and deleted the merged local feature branch. The unrelated locked detached Orca preparation worktree was left untouched.
 Remaining: original `studio-ui-redesign` GUI/device/audio acceptance remains postponed and open. Optional global strict-spec validation still reports long-description warnings in six specs; the canonical non-strict and named redesign strict validations pass.
+
+## Platform-adaptive UI redesign — Task 1 resume checkpoint — 2026-11-04
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved `platform-adaptive-ui-redesign` plan and its Task 1 SDD brief.
+Output: resumed the actual Compose desktop baseline in `.worktrees/platform-adaptive-ui-redesign/` using the asserted temporary home `/tmp/rhythhaus-adaptive-home.WzNS7P` and one synthetic silent track. At 800×600, Library → Search → Library Back was observed; expanded Controls and the Sleep Timer route were opened without changing playback or timer settings. Timer Back returned an immediate AX snapshot to Controls, but the settled read returned `permission_denied`; contemporaneous lock-state queries reported true. The user states they did not lock macOS, so the cause is unknown. The isolated app was terminated after the AX failure; Gradle exit 143 is the intentional SIGTERM, not an app regression.
+Verification:
+- Prior Shared Shell XML remains the recorded red baseline: 42 tests, 41 passed, 1 failed, 0 errors/skips. It was not rerun in this continuation.
+- Native Insets/IME and transition cancellation remain unverified. Window resize, paused-button drag, Queue body drag, Timer routing, and one Queue save-dialog backdrop drag were exercised in later desktop samples; Queue reorder, Lyrics/Timer scroll, pointer cancellation, and native-device paths remain open. No production source was changed; OpenSpec checkboxes remain unchecked.
+Next owner: implementation; continue only the remaining supported Task 1 checks and retain the pre-edit reproduction gate. The subsequent live desktop session was available; do not require a user unlock based on the earlier signal.
+Blockers: the earlier `IOConsoleLocked=true` / `CGSSessionScreenIsLocked=true` readings have unknown cause; the user states they did not lock macOS. iOS still lacks an installed Simulator GUI/touch driver; the Android app still fails before foreground. No permissions or security settings were changed.
+Commit: none; Task 1 and the implementation workflow are incomplete.
+
+## Platform-adaptive UI redesign — Task 1 GUI continuation — 2026-11-04
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Task 1 brief; user clarification that they did not lock macOS.
+Output: continued the actual Compose desktop matrix using `/tmp/rhythhaus-adaptive-home.WzNS7P`; the Gradle init script asserted that exact `user.home`. Only the generated six-second silent `Adaptive UI Test` fixture was present. The GUI was available (`IOConsoleLocked=false`); Orca AX and screenshots worked. The isolated app was stopped after the checks.
+- At 480×760, Controls used a vertically scrollable compact column. Scrolling to the end exposed all transport controls inside the window. At 960×700, Controls switched to the two-column artwork/controls layout. A Search → Library transition capture briefly showed both route frames, but both stayed below the native titlebar; the settled Library frame was stable. This is desktop window geometry, not a measured Android/iOS system safe rectangle.
+- At 960×700, a downward artwork-origin drag dismissed Controls to Library while preserving the paused fixture and Dock track. A downward drag from right-side empty space and from the Play control left Controls open; the Play-control drag did not start playback. At compact width, an earlier actual artwork-origin drag also returned to Library with the track paused.
+- The compact Queue body downward drag remained on Queue. Timer opened at 480×760 and Back returned to Controls, with the timer disabled and track paused. No Lyrics entry was available in the observed player surface; Lyrics scroll was not exercised. Queue reorder was not exercised.
+- A paused horizontal drag targeted at the seek track kept Controls visible and playback paused; the captured thumb/time moved to 0:00. There was no settled post-drag AX reread, so only the screenshot result is recorded; no claim about precise seek mapping.
+- The Queue “Save as playlist” dialog opened and dimmed Queue. A downward drag on the dimmed backdrop closed that dialog, but the underlying Queue remained visible; no playlist was created. This does not prove a drag against a Controls-under-dialog stack, so that exact protected-player variant remains unverified.
+- In a fresh 800×600 run, scrolling the Timer route down left its disabled scrollbar at `Value: 0`, kept the default timer off, and left all displayed duration/track-count choices visible. Timer Back returned to Controls with the synthetic track still paused.
+- A 7px downward drag beginning at the Controls artwork left the full Controls tree visible at 0:03/0:06 with status “已暂停”; it did not dismiss the player. This is a sub-threshold desktop mouse gesture, not pointer-cancellation evidence.
+- Search-field click did not establish a focused editable node; no query text was typed. Native IME behavior and Android/iOS system Insets remain unverified. Prior iOS first-screen screenshot showed status chrome above Compose, but no route or IME interaction; Android AVD still failed before foreground at `MainActivity`'s null-base-context `checkPermission()` call. No physical device was accessed.
+- The previously recorded Shared Shell result remains 42 tests: 41 passed, 1 failed, 0 errors/skips; this continuation did not rerun it. No production code or OpenSpec task status changed. No permission/security settings were changed.
+Lock-state correction: the user states they did not lock macOS. Earlier `IOConsoleLocked=true` and `CGSSessionScreenIsLocked=true` values are retained only as observed system signals; their cause is unknown and they do not establish user action. On this continuation `IOConsoleLocked=false` and desktop input worked.
+Historical next action at the close of the Task 1 GUI continuation: native Insets/IME and transition-cancellation evidence, Queue reorder, and the exact Controls-under-protected-dialog variant remained open. The user later directed implementation to continue without Android/iOS validation as a prerequisite; device acceptance remains unverified.
+Historical blockers at the close of that continuation: iOS had no installed Simulator GUI/touch driver and the Android AVD app failed before foreground. Those validations are explicitly not progression gates; no system permissions were changed.
+No commit was made in that continuation.
+
+## Platform-adaptive UI redesign — Shared shell Tasks 2.1–2.3 — 2026-11-05
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved `platform-adaptive-ui-redesign` plan and user direction to continue without Android/iOS validation as a prerequisite.
+Output:
+- Shared resolves physical safe bounds once, passes top safe padding through route seams, and provides an optional fixed-height accessible header. Now Playing and Onboarding no longer call global `safeContentPadding()` themselves.
+- Measured dock/navigation clearance is keyed to active content/layout/width. Route-owned IME hides compact dock/navigation and restores them from current measurements. Overlay-owned IME pads the full-window overlay without resizing covered route content.
+- Shared owns Android system-bar icon appearance from supplied status/navigation edge colors; iOS/JVM actuals are no-ops. Reduced motion uses the current host `MotionDurationScale`; no persisted preference was added.
+- Latest Shared JUnit XML: 555 tests, 554 pass, 1 failure, 0 errors/skips. The sole failure is `LibraryAppShellJvmTest.controlsDownSwipeDismissesToDockWithoutChangingPlayback`, retained for OpenSpec 3.1. Core UI 46/46, Now Playing 56/56, Onboarding 16/16; Android `assembleDebug` succeeds. The intermediate `currentTrackRestartsBeforeDismissal` failure passed in isolation and the final full run.
+- An asserted-HOME desktop smoke observed stable Library → Search → Library states at 800×600. A later repeat stopped at Orca's AX-unavailable error; no permissions/security settings changed. Android/iOS native Insets, IME, and appearance acceptance remain unverified and do not gate implementation per the user's explicit instruction.
+- OpenSpec 2.1–2.3 are checked; Task 1 baseline items and later implementation tasks remain open. No commit.
+Next action: continue with approved plan Task 4 / OpenSpec 3.1, preserving the touch-dismissal regression as the red acceptance target.
+Blockers: none for implementation. User-only Android/iOS visual/runtime acceptance remains unverified.
+
+## Platform-adaptive UI redesign — Native Insets/IME/accessibility verification — 2026-11-05
+
+Route: openspec+superpowers
+Owner: implementation
+Input: user request to verify Android/iOS native Insets, IME, and accessibility with emulators.
+Output:
+- Android API 37.1 Pixel 10 Pro XL AVD initially failed before foreground: `AndroidMediaStoreAudioPermissionController` queried `Context.checkSelfPermission()` from the `MainActivity` field initializer before the Activity base context was attached. The controller is now initialized immediately after `super.onCreate`; the fresh AVD launched and reached Library/Search. The module has no `androidTest` source set or instrumentation runner, so the launch regression is a fail-before/pass-after AVD smoke, not a retained Android test.
+- Android emulator geometry: 1080×1920 px at 420 dpi. The route begins below the 63 px status inset; with the IME open, the Shared route viewport is `[42,63][1038,1048]`, ending at the keyboard boundary. UIAutomator exposes the focused Search `EditText` at `[95,340][985,466]`, typed query `NativeInsets`, the clear action, and the no-match result; the compact navigation is absent while the IME owns the lower edge. Screenshots/XML are `/tmp/rhythhaus-android-ime.png` and `/tmp/rhythhaus-android-ime.pretty.xml`.
+- iOS 27.2 simulator: native window safe insets measured at top 62 pt / bottom 34 pt. A temporary XCTest UI target exercised Library → Search, the safe-frame semantics, the focused Search editor, the software keyboard, and typing `NativeInsets`. Final UI test passed 1/1 (`/tmp/rhythhaus-adaptive-native-ui-check-20261105-09.xcresult`). Compose exposes the editor as an accessible `TextView`; the keyboard is visible below it and `AppNavigationBottom` is absent during IME ownership. Simulator geometry was 402×874 pt; Search content ends at y=545 pt and the keyboard begins at y=590 pt.
+- Temporary iOS UI-test source/target and scheme/project entries were removed after the run. No OpenSpec task checkbox was changed; Task 1's broader baseline remains open. Native transition-cancellation, Queue reorder, and physical-device acceptance are still unverified.
+Historical next action at verification time: continue the approved plan at Task 5 / OpenSpec 4.1. Current Task 9 verification and remaining acceptance are recorded below; Task 1 remains open.
+Blockers: none for the requested emulator scenarios; physical-device acceptance remains unverified.
+
+## Platform-adaptive UI redesign — Task 5.2 Settings and tool routes — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved plan Task 8 / OpenSpec Task 5.2.
+Output:
+- Settings/About/licenses now use the Shared route header for title and Back. Settings supplies localized About/license titles through its existing route callbacks; Shared stores them in the route payload and renders them without importing or duplicating Settings resources. Compact tool routes hide bottom primary navigation; the wide sidebar remains visible with no primary destination selected.
+- Settings, About/licenses, and onboarding feature-owned app bars no longer duplicate Shared chrome. Onboarding remains a full-window layer, receives no second top-safe inset, and keeps its existing Review-mode Close/Next behavior and safe-content scrolling.
+- The AboutLibraries owner now receives an internal `LazyListState`; a 200%-text regression exercises the real lazy-list scroll action to the final catalog row inside a bounded 390×640 viewport.
+- Shared regressions cover compact/wide Settings→About→licenses routing and Back, review onboarding action reachability, desktop drop feedback while chrome remains available, and current Settings/About route operations. Desktop-drop admission/validation code and folder-picker action semantics are unchanged.
+Verification:
+- `./gradlew :feature:settings:jvmTest :feature:onboarding:jvmTest :shared:jvmTest --configuration-cache` passed. Fresh XML totals: Settings JVM 54/54, Onboarding JVM 17/17, Shared JVM 563/563; zero failures, errors, or skips.
+- `./gradlew architectureCheck --configuration-cache --console=plain` passed.
+- `openspec validate platform-adaptive-ui-redesign --strict` passed. `git diff --check` passed.
+- OpenSpec 5.2/5.3 automated implementation requirements are complete. The later Task 6 matrix still owns isolated desktop runtime, native visual/accessibility, system inset, real document picker, and physical-device acceptance; those checks remain unverified. No commit or archive.
+Next owner: implementation — resolve independent review findings, then continue approved plan Task 9 / OpenSpec 6.1–6.3; user-only acceptance stays pending.
+Blockers: none for automated implementation. User-only native and desktop visual acceptance remains unverified.
+Commit: none; adaptive redesign remains open in its isolated worktree.
+
+## Platform-adaptive UI redesign — Task 9 verification and review — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation / harness
+Input: approved Task 9 / OpenSpec 6.1–6.3 acceptance plan.
+Output:
+- The full approved viewport × locale × text-scale × motion × input × route/overlay matrix is not complete. Automated consumer coverage includes compact 360×640 Controls at 200% text, Settings/About compact↔wide route reflow, player 1015/1016 Queue threshold, onboarding 200% and 360×640/600×400 bounds, timer/player 390×844, 800×600, 800×1280/1200, 1280×800 cases, Settings English/Simplified Chinese, and existing motion/IME/overlay/Back regressions. Pure Shared navigation tests cover 719.99/720 and 999.99/1000 breakpoints. These samples do not prove every Task 9 size or all 51 prototype states.
+- `./init.sh` passed. Shared JVM fresh XML: 563 tests, zero failures/errors/skips. Shared iOS simulator fresh XML: 339 tests, zero failures/errors/skips. The run also passed desktop JVM compilation and Android `assembleDebug`; Xcode version was 27.2.
+- Full affected matrix passed: Core UI JVM 46, Library JVM 188, Search JVM 22, Playlists JVM 181 and iOS simulator 101, Now Playing JVM 59 and iOS simulator 13, Settings JVM 54, Onboarding JVM 17, Shared JVM 563; all zero failures/errors/skips.
+- `./gradlew architectureCheck --configuration-cache --console=plain`, `openspec validate platform-adaptive-ui-redesign --strict`, and `git diff --check` passed.
+- Independent read-only review of the complete working-tree diff from base `b9be0c3f36c3ecf3eb947456a4b6730eef471f30` found material issues. Corrections and their final verification are recorded below; original automated passes alone did not establish readiness.
+- The isolated actual-surface desktop smoke was attempted with asserted synthetic HOME `/tmp/rhythhaus-adaptive-home.WzNS7P` and synthetic-only audio. Gradle spent the initial run downloading/configuring a private Gradle user home; the persistent retry remained in configuration without a RhythHaus window. Orca reported `IOConsoleLocked=true`; the user says they did not lock macOS, so cause is unknown. The smoke process was stopped; permissions and user settings were not changed. Desktop player playback/gesture and visual acceptance remain unverified.
+- Android/iOS physical visual/accessibility/system-Inset behavior and audio listening remain user-only/unverified. Task 5.1 and Task 6.1 remain open; the change is not archive-ready. No commit was made.
+Next owner: implementation after independent review; fix any Important/Critical findings, rerun affected checks, then await user-operated desktop/device/audio acceptance before closing the mixed acceptance tasks.
+Blockers: actual-surface desktop window unavailable in the locked-console observation; full seven-size/51-state matrix and physical/device acceptance incomplete.
+Commit: none; the OpenSpec change remains active in this isolated worktree.
+
+## Platform-adaptive UI redesign — independent review corrections — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation / harness
+Input: independent `AdaptiveReview` findings against the complete working-tree diff.
+Output:
+- Confirmed and corrected the full-screen player safe-area regression: `NowPlayingSafeFrame` now consumes all four physical edges from Shared's snapshot. The player no longer bypasses shell-owned safe geometry.
+- Split physical window bars/cutouts from keyboard height in `rememberAppShellWindowBounds`. `safeDrawing` includes IME, so using it as physical bottom padding caused covered routes to shrink even when a modal owned the keyboard. System bars union display cutouts now supplies physical edges; only the foreground input owner consumes IME.
+- Expanded Controls now offers a localized, visible 48dp Close player action using the existing Shared Back callback. Adjacent noninteractive blank space retains its downward-dismiss gesture. Integration asserts both swipe and Close preserve paused playback, query route, selected track, and duplicate queue occurrences.
+- Shared headers grow with canonical title line height and live font scale while preserving one height across titles and matching content reservation. Settings regains route Back; compact tool routes hide primary navigation while wide navigation remains unselected.
+- Removed empty hidden-header lazy items from Settings/About and header-only spacing from the license list. Corrected the canonical API count to eleven Library labels, first nine supplied by Shared, and replaced nonexistent-header-tag assertions with rendered title assertions.
+- Negative controls failed as expected for physical top-safe padding removal, IME mixed into physical bottom, restored fixed header height, and restored empty lazy header items. All mutations were restored before final gates. The rendered title growth test is differential, not an exact-height/wording pin.
+- Test-host limit discovered: default `runComposeUiTest` clamps the display to 1024×768px even when a child requests a larger size. The protected-control drag test now uses `runSkikoComposeUiTest(size=1280×1100)` explicitly. Earlier references to child-requested 1280dp/tablet sizes do not prove those actual viewports; the full Task 6.1 matrix remains unverified.
+Final verification:
+- Full affected suites passed: Core UI JVM 46; Library JVM 188; Search JVM 22; Playlists JVM 181 / iOS simulator 101; Now Playing JVM 60 / iOS simulator 13; Settings JVM 57; Onboarding JVM 17; Shared JVM 567. Every report has zero failures/errors/skips.
+- Standalone `./gradlew qualityCheck --configuration-cache --console=plain` passed (Spotless, Detekt, architecture).
+- `./init.sh` passed: Shared JVM 567, desktop compile, Android debug assembly, Xcode 27.2, Shared iOS simulator 339; zero test failures/errors/skips.
+- `openspec validate platform-adaptive-ui-redesign --strict` and `git diff --check` passed. All 20 local Markdown links in changed documentation resolve after excluding inline/fenced log excerpts.
+- One combined invocation of `qualityCheck` and feature `allTests` failed architecture validation on generated `swiftPMDependenciesForLockFilesMetadataClasspathDependencies` edges, including `:shared -> :shared`. The same platform suites and quality gate passed as separate commands; no architecture allow-list or Gradle dependency was changed to suppress the diagnostic.
+- Bounded independent re-review completed with no residual findings in the corrections. Full actual-surface matrix, locked-console desktop player smoke, physical-device accessibility/system-inset/picker checks, and audio listening remain unverified. No commit or archive.
+Next owner: implementation — finish only acceptance criteria with observable evidence. Preserve OpenSpec 5.1, 6.1, and 6.3 as open.
+Blockers: full seven-size/51-state actual-surface matrix and user-only visual/audio acceptance remain incomplete.
+
+### Explicit-host runtime smoke — 2026-11-06
+
+- A temporary `runSkikoComposeUiTest` harness exercised actual 360×640, 390×844, 844×390, 800×600, 800×1280, 1024×1366, and 1280×800 hosts, not child-only size requests. All 28 combinations (seven sizes × English/Simplified Chinese × 100%/200% text) passed with motion scale 0.
+- Each scenario exercised production Library → Search query entry → Back → Settings → About → licenses → Back to Library, verified exact host size, header/content bounds containment and boundary alignment, compact tool navigation absence, action scroll reachability, and final primary selection. The temporary harness was removed after success; permanent owner suites are rerun afterward.
+- This is real Compose runtime/semantics evidence for those routes only. It is not native screenshot, real system IME/cutout, audio, or full 51-state acceptance; OpenSpec 6.1 remains unchecked.
+- After removing the temporary harness, `./gradlew :shared:jvmTest qualityCheck --configuration-cache --console=plain` passed, followed by strict OpenSpec and `git diff --check`. OpenSpec 6.2 engineering verification is checked; 5.1, 6.1, and 6.3 remain open. No commit or archive; final acceptance cannot be inferred from automated passes.
+
+### Desktop player smoke completed — 2026-11-06
+
+- Corrected the launch recipe: `./gradlew :desktopApp:run --no-configuration-cache --console=plain -I /tmp/rhythhaus-adaptive-home.init.gradle` uses the already-cached build environment while the init script sets and asserts only the app's `user.home`. Output confirmed `RHYTHHAUS_SMOKE_HOME=/tmp/rhythhaus-adaptive-home.WzNS7P`. No personal media or settings were accessed. This avoids the previous cold Gradle HOME/download startup, without changing production packaging or toolchains.
+- Live process `MainKt` PID 17929 / window 14907 rendered at 800×600. Console observation was unlocked. Orca produced actual accessibility trees and window screenshots. Only the generated six-second silent `Adaptive UI Test` track from Test Artist / Test Album was present.
+- Controls Play changed visible status to playing and elapsed time advanced 0:00→0:01. Pause changed status to paused. An artwork-origin downward drag returned to Library with the same track, paused dock, and 0:06 time. This verifies engine/UI progress, not audible output quality (the sample is intentionally silent).
+- Queue opened with the same current occurrence; a body-area downward drag stayed in Queue. Its return action restored Controls, still paused. Timer opened with fade off and all existing duration/completion choices; Back restored Controls without arming a timer. Named Close player returned to a settled Library/dock frame.
+- Resized the same native window to 390×768. Reopened Controls still showed the same paused track; artwork downward drag dismissed to Library. Reopened again; scrolling the compact content changed scrollbar offset 0→182 and exposed the complete Previous/Play/Next transport row while retaining pause.
+- Screenshot evidence lives in `/var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/orca-computer-use/`: `ad1058d2-a29d-47a1-9a12-c0584c2409cd-screenshot.png` (wide drag settled), `213f6659-5963-46d8-bb3a-9a3dbc1518db-screenshot.png` (named Close settled), `4ec555db-c747-4cf4-a9ac-9c82d6d5962c-screenshot.png` (Timer), `1f006a41-0725-4490-b838-9f9ca8363047-screenshot.png` (compact drag settled), and `d92299bd-db4d-4fa5-bcf1-9e4b7a9f59ad-screenshot.png` (compact full transport after scroll). The isolated service was stopped after these observations; permissions/security settings unchanged.
+- OpenSpec 5.1's real desktop playback/player gesture smoke is now evidenced. Physical-device, native input/IME matrix, full 51-state presentation, and listening acceptance remain separate open items.
+
+### Expanded acceptance continuation — 2026-11-06
+
+- Player smoke harness: five groups × seven actual host sizes × EN/zh-CN × 100%/200% font scale, 140 group/configuration runs, passed. Groups cover paused/playing/loading/stopped, long metadata/missing-art fallback, transport/seek/favorite/Close, retry/skip/remove error recovery, Queue panel/sidebar placement, nonempty/absent Lyrics and scroll/return, Timer modes/fade/cancel/return. Queue placement uses a fixture body and does not substitute for production queue content verification. The temporary file was removed after success.
+- Library actual-host smoke: ten scenarios passed across 360×640, 844×390, 1280×800 and EN/zh-CN/200% representatives. Covered all six browse modes, empty/current-view-empty/scanning, picker/cancel actions, album/artist detail identity/fallback/selection, last-row reachability, metadata invalid-draft/save-failure behavior, and selection toggle without playback. Playlist actual-host smoke: nine scenarios passed for static/smart hub/detail/empty, create/edit, long-rule Save, last-row scroll, Chinese 200% actions, queue-save cancel and failed-save draft/retry. These feature-only hosts do not prove Shared/native Insets or all state×size combinations.
+- Harness-only corrections: wide artwork has no scroll parent (scroll only compact artwork); More contains secondary views, not Albums (choose Favorites); Chinese create-type selection targets the clickable row. No production change was required by these smoke results.
+- Rebuilt final Android APK installed on isolated `RhythHausAdaptiveVerify` emulator-5580, API 37.1. UIAutomator and screenshot verified Library/Search, focused editor `FinalNativeInsets`, clear action, no-result state and real IME; compact navigation absent under IME. At font_scale=2.0, Library remained within system bars with all four browse controls and import action visible; Search keyboard Back retained `LargeInsets` and restored bottom navigation. Evidence: `/tmp/rhythhaus-acceptance-ime.xml`, `-ime.png`, `-large.xml`, `-large.png`, `-back.xml`. Font scale restored to 1.0 and emulator stopped. No permission grants or personal device interaction.
+- Final iOS native host built via xcodebuild and installed on app-owned simulator `7FABB7D1-9384-4932-BA9E-C364F1E47A76`. Correct bundle ID is case-sensitive `com.eterocell.RhythHaus`. Settled screenshots verify Chinese empty Library/Shared header/import/navigation within physical safe area at default and largest accessibility content category: `/tmp/rhythhaus-final-ios-settled.png`, `/tmp/rhythhaus-final-ios-large.png`. Immediate launch screenshot was a transition frame and is excluded. Content size restored to large; simulator shut down. This round has no iOS touch/keyboard/VoiceOver proof: simctl exposes no input channel and Simulator.app remains unavailable; the earlier hosted UI-test evidence stays separate.
+- State evidence coverage: browsing (`library`, six modes, empty/view-empty/scanning/selection, missing art, album/artist, metadata edit/failure) and playlist/queue-save families now have actual-host representative action coverage. Player Controls/loading/ended/error/Queue/Lyrics/Timer cover all seven sizes and both locales/scales. Search/Settings/About/licenses retain the prior 28-scenario production-shell traversal. Source/scan/report/maintenance, JSON/interchange/backup preview, onboarding, and desktop-drop families have permanent consumer/controller regressions, but their full actual-host locale/text/input/transition cross-matrix is not yet established. Do not close 6.1 from a state-name mapping or prototype alone.
+- OpenSpec 5.1 is now checked. 1.1–1.3 historical baseline gates remain unchecked under the user's implementation-progression waiver; this continuation does not recreate pre-change evidence. 6.1 and 6.3 remain open for the full specified matrix/manual acceptance and final lifecycle. No commit/archive.
+- Additional scoped host checks: document preview failure/stale confirmation passed at 360×640, 844×390, 1280×800; document JSON/interchange action separation passed at compact/wide hosts. Onboarding Skip/Finish callback and bounds checks passed at those three hosts plus 360×640/200% text. Shared backup cancel/stale/read-failure and desktop-drop feedback passed at explicit 1280×800/200% hosts; those two permanent regressions now explicitly size the test host.
+- Exploratory Settings suite-wide host wrapper ran 30 methods at the three sizes. Four failed on invalid smaller-host interactions: crossfade `performScrollTo` queried uncomposed lazy items, and notification-recovery callbacks were asserted after clicking without first scrolling their row into view. These are not a passing whole-tool matrix; the observed failures and limitations remain recorded rather than changing production to satisfy the wrapper. The wrapper and all other throwaway helpers were removed; permanent suites are rerun afterward.
+- Follow-up resolved those four test interactions using the existing `settingsControl` helper, which scrolls the owning lazy list to the target before querying/clicking. No behavior assertions or production code changed. All 30 Settings route-adapter methods then passed at each actual host 360×640, 844×390, and 1280×800 (90 method/host runs at default text scale). Includes preference persisted/busy/failure projections, scan complete/failed/cancelled/report retention, remove-missing/source removal/clear confirmations, admission failure retention, folder and notification recovery, and route/dismissal ownership. The wrapper was removed; permanent scroll-owner fixes remain. This supersedes the exploratory failures above but does not establish 200%/Chinese coverage for every tool state.
+- Final full-suite run exposed `CarPlayFacadeTest.transportCommandsRouteThroughTheSharedPlaybackController`: expected Applied, observed StalePlayback. Root cause is test setup crossing two asynchronous owners: waiting for PlaybackController current track/status does not wait for CarPlayFacade's separately collected snapshot generation. Transport correctly rejects the old advertised selection generation. The test now awaits the existing facade observer until track and selection generation match before issuing each command; stale-command production validation and all transport assertions are unchanged. This is test synchronization only; focused JVM/iOS and full gates are rerun afterward.
+- Final permanent-tree verification passed after all temporary helpers were removed: Core UI JVM 46, Library JVM 188, Search JVM 22, Playlists JVM 181, Now Playing JVM 60, Settings JVM 57, Onboarding JVM 17, Shared JVM 567 and Shared iOS simulator 339; all zero failures/errors/skips. Complete CarPlayFacadeTest also passed separately on JVM and iOS simulator. `qualityCheck` passed; `./init.sh` passed Shared JVM, desktop compile, Android debug assembly, Xcode check and Shared iOS simulator. Strict adaptive OpenSpec validation and `git diff --check` passed. Final output: artifact://1074 (full chained gates), artifact://1072 (focused CarPlay JVM/iOS).
+
+Route: openspec+superpowers
+Owner: implementation / harness
+Input: user instruction to continue open tasks.
+Output: OpenSpec 5.1 closed with real desktop playback/gesture evidence; expanded actual-host feature/tool matrices and isolated Android/iOS observations; permanent test synchronization/scroll fixes; clean final verification. OpenSpec progress 12/17.
+Next owner: implementation for remaining 6.1 state/input/transition combinations; user-operated physical-device accessibility and audible listening acceptance remain required. Historical 1.1–1.3 baseline requirements remain unchecked under the earlier progression waiver and cannot be relabeled as pre-change passes.
+Blockers: full 51-state cross-matrix is still incomplete; iOS touch/keyboard has no current simulator input driver (simctl provides screenshots only); physical device screen-reader and listening acceptance cannot be inferred from synthetic silent media/Compose semantics. Keep 6.1 and 6.3 open. No commit or archive.
+
+### Remaining rendered-state and transition checks — 2026-11-06
+
+- Search: all 28 explicit host/locale/text-scale combinations passed through idle, results/count/ordered visible IDs, long metadata and final row, normal play, selection row/checkbox without playback, no-match and Clear. This covers `search-idle/results/empty/selection` through production SearchContent, not a synthetic screen.
+- Onboarding: seven harness groups passed. First-run pages, review pages and saving/error/retry each traversed all seven host sizes × EN/zh-CN × 100%/200%; representative reduced-motion, physical padding and lazy action reachability also passed. Guidance checked Android/iOS/macOS wording. Disabled controls are verified by no dispatched callback, not absence of Miuix's retained OnClick key. Lazy prefetch is not treated as an acceptance contract. This supplies rendered evidence for `onboarding`, `onboarding-import`, `onboarding-scan`, and `settings-onboarding`.
+- Eight targeted Settings owner scenarios passed all seven actual host sizes × 100%/200% text: retained report vs current failure, terminal complete/failure/cancel/retry, source recovery/removal, clear/remove-missing impact confirmation and admission-failure retention, plus crossfade persisted selection/recreation (EN/zh-CN for that test). All behavior assertions unchanged. Source/maintenance text coverage outside crossfade remains primarily English; this is not every localized state combination.
+- Document preview repository failure/retry and stale-confirmation disabling passed seven hosts × 100%/200%. Four HausDialog tests passed that same host/text matrix, including keyboard avoidance without covered-route resize, foremost-layer semantics, outside dismissal and focus restoration.
+- Production-shell push frames, cancelled Back with query retention, committed pop frames, and stable header/content bounds passed all seven actual hosts × 100%/200%, normal motion. Global Settings was checked at the correct compact/header or wide/navigation owner. Earlier reduced-motion settlement tests remain separate evidence.
+- All added runtime harnesses and temporary runner overrides were removed. No production edits were needed by this phase. The permanent overlay assertion now derives the keyboard-safe bottom from the measured covered height instead of hardcoding 400px; permanent tool tests retain corrected lazy-owner scrolling. Full permanent verification is rerun after removal.
+- The exact 51-state inventory has rendered representative coverage across browsing, Search, playlist/edit/rules/documents, metadata, playback/queue-save/Lyrics/Timer/error, Settings/report/maintenance, About/licenses, onboarding and drop families. This inventory mapping plus the successful matrices does not establish every locale/text/input/native transition combination or screen-reader usability. Keep 6.1/6.3 and user-only acceptance open rather than marking mixed criteria complete from test counts.
+- Final permanent-tree gates after this additional matrix passed: all affected owner JVM suites, standalone qualityCheck, init.sh (Shared JVM, desktop compile, Android debug assembly, Shared iOS simulator), strict OpenSpec and diff hygiene. Output artifact://1212. No temporary wrappers/test files remain. All isolated desktop/emulator/simulator sessions are stopped. No commit/archive: 1.1–1.3 retain historical baseline limitations, and 6.1/6.3 retain the incomplete comprehensive locale/state/input/native acceptance gate.
+
+### Recovered native iOS input and localized tool acceptance — 2026-11-06
+
+- The previous statement that iOS had no usable input driver is superseded. A retained `iosAppUITests-Runner.app` and `NativeAdaptiveSurfaceUITests/testAccessibleSearchAndKeyboardStayWithinSafeArea` were found in `/tmp/rhythhaus-adaptive-native-probe-derived/Build/Products/Debug-iphonesimulator/`. Reconstructed an external version-2 `.xctestrun` manifest using installed `man xcodebuild.xctestrun` documentation. No Xcode project, scheme, app source, or permanent test infrastructure changed.
+- The manifest points UITargetAppPath at the final rebuilt app `/tmp/rhythhaus-acceptance-final-ios/Build/Products/Debug-iphonesimulator/RhythHaus.app`, not the old app beside the runner. Test destination is app-owned simulator `7FABB7D1-9384-4932-BA9E-C364F1E47A76`; no personal simulator/device used.
+- `xcodebuild test-without-building` passed three native UI runs, one test each, zero failures/skips: Chinese default (`/tmp/rhythhaus-final-native-acceptance-v1.xcresult`), English default (`/tmp/rhythhaus-final-native-en-v2.xcresult`), English largest accessibility text (`/tmp/rhythhaus-final-native-large-v3.xcresult`). Logs show real XCTest navigation tap, Search TextView tap, native keyboard appearance, `NativeInsets` text entry, safe-frame query, and bottom navigation absent under IME. This is current native UI automation evidence, not Compose-host or old-result substitution. Default content size restored and simulator shut down afterward. Largest accessibility category is not claimed to equal exactly 200% Compose font scale.
+- Chinese tool-owner smoke passed seven actual host sizes × font scale 1/2: localized complete/failed/cancelled scan status, report open/hide, retry dispatch, named source removal confirmation, and clear-library cancel without clear dispatch. Test-only fixture uses production Shared/feature route composition and existing operation callbacks. Output artifact://1238. Temporary test and its extra import removed; no production changes or permanent extra tests.
+- Remaining acceptance is narrower: native screen-reader traversal/usability and audible listening remain human-performed; all 51 states have representative rendered evidence but not every stated locale/state/input/native combination. Historical pre-change gates 1.1–1.3 cannot be retrospectively proven. Preserve 6.1/6.3 as open and do not commit/archive from these targeted passes.
+- Fourth native configuration also passed: Chinese at largest accessibility category, `/tmp/rhythhaus-final-native-zh-large-v4.xcresult` (1 test, zero failures/skips). Total native UI result is four successful runs: EN/ZH × default/largest accessibility category, all against the final rebuilt app. The previous three-run summary above is superseded by this total. Device category restored to large and simulator shut down after the fourth run. Native XCTest confirms accessible element names/types and actual input; it does not establish VoiceOver traversal/listening quality.
+- Native tablet attempt: direct rebuilt app installation/launch succeeded on isolated iPad mini A20 Pro simulator `F1DB0EE8-2467-4623-BD0F-C99DBDDD8203`; its settled screenshot shows localized onboarding within the tablet display. XCTest UI runner attempt failed before test assertions because SpringBoard returned “Application info provider (FBSApplicationLibrary) returned nil” for the target bundle on iPad; result `/tmp/rhythhaus-final-native-ipad-en-v5.xcresult`. This is a runner/target-launch failure, not an app UI assertion failure. It provides no iPad Search/sidebar/IME proof. Both phone and tablet simulators are shut down; no app settings or security permissions changed.
+- Post-cleanup permanent-tree gate `./gradlew :shared:jvmTest qualityCheck --configuration-cache --console=plain` passed: Shared JVM 567, zero failures/errors/skips; formatting/static/architecture checks passed. Strict adaptive OpenSpec and diff hygiene passed. Output artifact://1241. No temporary tool harness or extra import remains, and no source/project changes were retained in this continuation. Runtime/native evidence and documentation updates only; prior full init.sh gates remain valid for unchanged production code.
+
+### About artwork checkpoint — 2026-11-06
+
+Route: openspec+superpowers
+Owner: implementation / harness
+Input: resumed Settings/About artwork slice in the adaptive worktree, with two failing-before render assertions and the existing iOS app-icon catalog.
+Output:
+- The Settings About row uses the app artwork at 22dp; About shows it at 80dp beside the original vector logo. Both use one decorative Settings-owned resource; the localized About action, app name, version, source link, and licenses flow are unchanged.
+- The resumed context did not include a separate attachment. Used the unqualified iOS launcher artwork already in the project (`AppIcon.appiconset/app-icon-dark.png`), reduced to 320px for the Compose resource with `sips -Z 320`. Neither launcher variant nor the asset catalog was changed. No new theme behavior, dependency, or public feature API.
+Verification:
+- The prior filtered JVM reports showed both missing-icon assertions failing. The same filtered `AboutScreensJvmTest` and `SettingsScreenSemanticsJvmTest` methods then passed against the implementation.
+- An isolated, empty-HOME macOS desktop run at 800×600 showed the small icon next to the single localized About action, and the large icon beside the original logo and version. Open Source Libraries loaded and Back restored About. Settled Orca captures: `65143008-88c3-485a-8a10-1482f8df4d90-screenshot.png` and `d083ae9e-643a-414b-9ba2-306dc1ce9640-screenshot.png`. The process was stopped; no personal data was used.
+- `./gradlew :feature:settings:jvmTest :feature:settings:iosSimulatorArm64Test --configuration-cache --console=plain` and `./init.sh` passed: Settings JVM 57, Settings iOS simulator 3, Shared JVM 567, Shared iOS simulator 339, zero failures/errors/skips; desktop compile and Android debug assembly passed.
+- Unsigned `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build` passed with isolated DerivedData. The built app contains `Assets.car` and the Settings Compose PNG; `cmp` confirmed the packaged PNG matches the resource byte-for-byte. No iOS runtime visual claim is made for this icon change.
+- Standalone `./gradlew qualityCheck --configuration-cache --console=plain` and the full Settings JVM suite passed after applying the reported whitespace-only correction. `openspec validate platform-adaptive-ui-redesign --strict` and `git diff --check` passed.
+Next owner: user for physical-device accessibility and listening acceptance; remaining adaptive matrix and lifecycle gates stay open. No commit or archive.
+Blockers: none for the artwork slice. Adaptive OpenSpec status is unchanged at 13/17; 1.2, 1.3, 6.1, and 6.3 remain open.
+
+### Task 9 handoff continuation — 2026-11-06
+
+Route: openspec+superpowers / executing-plans
+Owner: implementation / harness
+Input: prior Orca handoff; two temporary acceptance probes already present in the adaptive worktree.
+Output:
+- `./gradlew :shared:jvmTest --tests '*LibraryAppShellJvmTest.temporaryAdaptiveAcceptance*' --configuration-cache --console=plain -q`: 2/2, zero failures/errors/skips. On rendered Search, widths 719/720/721/999/1000/1001dp and return to compact preserved the query and primary selection, kept the header aligned with content, and placed navigation and Settings in the correct chrome. Covered EN/zh-CN, 100%/200% text, and motion scales 0/1 using a fixed 1001×800 Compose host with a resized shell; not an OS window resize.
+- The production Queue probe covered all seven explicit host sizes × EN/zh-CN × 100%/200% text with reduced motion (28 configurations). It verified panel bounds, visible Save, reachability of the last row’s move action, reordering by occurrence ID despite duplicate tracks, and preserved current track. Both temporary probes were removed; the permanent XML contains neither.
+- The first `./init.sh` failed before iOS tests ran (`dyld_sim mmap() of segment failed`, signal 6/exit 134). Isolated `:shared:iosSimulatorArm64Test` launched the same linked binary and ran 339 tests, exposing one distinct assertion failure in `AppScanCancellationTest.nativeProcessInitializesCatalogAndRecordsPlaybackWithoutComposition`: expected `playlistsUnavailable=false`, observed `true`. The test had accepted the first Ready emission, which can precede the combined projection of the playlist snapshot. It now waits for a Ready snapshot with the expected availability in each case, then verifies the existing selection, history, and restore outcomes. No production CarPlay, playlist, or playback code changed. No simulator setting or cache was changed to address the one-off loader abort.
+Verification:
+- Permanent owner JVM suites and `qualityCheck` passed in a JVM-only invocation; XML totals: Core UI 46, Library 188, Search 22, Playlists 181, Now Playing 60, Settings 57, Onboarding 17. `./init.sh` then passed Shared JVM 567, desktop compilation, Android debug assembly, Xcode check, and Shared iOS simulator 339. All inspected suites had zero failures/errors/skips.
+- `openspec validate platform-adaptive-ui-redesign --strict`, `git diff --check`, and all 26 relative Markdown links in the adaptive change, plan, and design passed. The new changes are limited to verification and handoff evidence; production implementation was not changed in this continuation.
+Next owner: user for final native visual, keyboard/screen-reader, system-inset and listening checks; implementation records results and resolves any findings before final closeout.
+Blockers: 1.2/1.3 retain incomplete pre-change evidence; the progression waiver is not an acceptance pass. 6.1 retains incomplete native/input coverage, including Android three-button navigation and iOS landscape/cutout transitions and iPad Search/IME (prior XCTest target-launch failure). The seven-size Compose evidence and native phone samples do not replace the full mixed matrix or user-only checks. 6.3 remains open; no commit, merge, or archive. OpenSpec remains 13/17.

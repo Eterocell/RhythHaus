@@ -10,18 +10,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -74,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.HausShapes
 import com.eterocell.rhythhaus.theme.HausSpacing
 import com.eterocell.rhythhaus.theme.HausThemeColorSource
 import com.eterocell.rhythhaus.theme.HausTypography
@@ -400,7 +397,8 @@ internal const val SettingsSectionInformationTag =
  *   with the source id whose access is lost.
  * @param onRemoveSource dispatches a removal with the source id.
  * @param onRequestClearLibrary requests the Shared clear-library confirmation.
- * @param onAboutClick navigates to the feature-owned About page.
+ * @param onAboutClick supplies the feature-localized About route title to the
+ *   host when opening the About page.
  * @param onReviewOnboarding navigates to the onboarding review page.
  * @param onRequestNotificationPermission re-requests host notification
  *   permission for the [MediaNotificationRecovery.Requestable] variant.
@@ -454,7 +452,7 @@ public fun SettingsScreen(
     onRecoverSource: (String) -> Unit,
     onRemoveSource: (String) -> Unit,
     onRequestClearLibrary: () -> Unit,
-    onAboutClick: () -> Unit,
+    onAboutClick: (String) -> Unit,
     onReviewOnboarding: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
@@ -462,6 +460,8 @@ public fun SettingsScreen(
     onOpenMediaStoreSettings: () -> Unit = {},
     onAddMediaStoreAudio: () -> Unit = {},
     onDismiss: () -> Unit,
+    showRouteHeader: Boolean = true,
+    topContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
     listState: LazyListState? = null,
     onExclusiveModalChanged: (Boolean) -> Unit = {},
@@ -525,10 +525,7 @@ public fun SettingsScreen(
                                 modifier =
                                     Modifier.fillMaxSize()
                                         .testTag(SettingsListTestTag)
-                                        .windowInsetsPadding(
-                                            WindowInsets.safeDrawing.only(
-                                                WindowInsetsSides.Horizontal +
-                                                    WindowInsetsSides.Top))
+                                        .padding(top = topContentPadding)
                                         .padding(
                                             horizontal =
                                                 policy.horizontalPagePadding,
@@ -540,14 +537,17 @@ public fun SettingsScreen(
                                 verticalArrangement =
                                     Arrangement.spacedBy(policy.itemSpacing),
                             ) {
-                                item {
-                                    RhythHausTopAppBar(
-                                        labels.title,
-                                        onDismiss,
-                                        titlePadding =
-                                            policy.topBarTitlePadding,
-                                        navigationIconPadding =
-                                            policy.topBarNavigationIconPadding)
+                                if (showRouteHeader) {
+                                    item {
+                                        RhythHausTopAppBar(
+                                            labels.title,
+                                            onDismiss,
+                                            titlePadding =
+                                                policy.topBarTitlePadding,
+                                            navigationIconPadding =
+                                                policy
+                                                    .topBarNavigationIconPadding)
+                                    }
                                 }
                                 item(key = SettingsSectionAppearanceTag) {
                                     SettingsSectionHeading(
@@ -997,7 +997,11 @@ public fun SettingsScreen(
                                         SettingsSectionInformationTag)
                                 }
                                 item { ReviewOnboardingRow(onReviewOnboarding) }
-                                item { AboutRow(onAboutClick) }
+                                item {
+                                    val aboutTitle =
+                                        stringResource(Res.string.about)
+                                    AboutRow { onAboutClick(aboutTitle) }
+                                }
                             }
                         }
                 }
@@ -1107,11 +1111,10 @@ private fun AboutRow(onClick: () -> Unit) =
             .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            Icons.Default.Info,
-            null,
-            tint = HausColors.current.textPrimary,
-            modifier = Modifier.size(22.dp))
+        RhythHausAppIcon(
+            Modifier.size(22.dp)
+                .clip(RoundedCornerShape(HausShapes.artwork))
+                .testTag("settings-about-app-icon"))
         Spacer(Modifier.width(12.dp))
         Text(
             stringResource(Res.string.about),

@@ -2,7 +2,10 @@ package com.eterocell.rhythhaus.ui
 
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -21,7 +24,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.Dp
 
 /** Publishes dismissible feature content into an app-owned window overlay. */
 public fun interface HausWindowOverlayPublisher {
@@ -54,9 +59,24 @@ public val LocalHausWindowOverlayVisible: ProvidableCompositionLocal<Boolean> =
  * Draws feature modal content above the full app window, outside narrow panes.
  */
 @Composable
-@OptIn(ExperimentalComposeUiApi::class)
 public fun HausWindowOverlayHost(
     modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val imeBottomInset =
+        with(LocalDensity.current) { WindowInsets.ime.getBottom(this).toDp() }
+    HausWindowOverlayHostContent(
+        modifier = modifier,
+        imeBottomInset = imeBottomInset,
+        content = content,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalComposeUiApi::class)
+internal fun HausWindowOverlayHostContent(
+    modifier: Modifier = Modifier,
+    imeBottomInset: Dp,
     content: @Composable () -> Unit,
 ) {
     var overlayContent by remember {
@@ -122,6 +142,7 @@ public fun HausWindowOverlayHost(
         }
         Box(
             Modifier.fillMaxSize()
+                .padding(bottom = imeBottomInset)
                 .focusProperties { onExit = { cancelFocusChange() } }
                 .focusGroup(),
         ) {

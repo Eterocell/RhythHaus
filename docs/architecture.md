@@ -36,9 +36,9 @@ implementation; cross-feature interaction is only through an explicit feature AP
 | Capability reused by at least two domains | `:core:platform` when justified |
 | Playback engine and contracts | `:core:playback` when extracted |
 | Scanner, source access, index, repository, UI, transient state | Library feature |
-| Playlist repository, edit flow, backup, UI | Playlists feature |
+| Playlist repository, edit flow, backup, content UI, transient drafts | Playlists feature |
 | Settings and About presentation | `:feature:settings` |
-| Composition, root shell, cross-feature navigation and Back | `:shared` |
+| Composition, root shell, measured route title/Back headers, cross-feature navigation and Back | `:shared` |
 
 `core:ui` never owns feature UI state. Repositories and mappings remain in their
 feature implementation, even after `:core:database` becomes the sole SQLDelight
@@ -70,10 +70,10 @@ Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, with one common implementation, 
 no iOS export. Its Android namespace and Kotlin package are `com.eterocell.rhythhaus.search`; its
 resource namespace is `rhythhaus.feature.search.generated.resources`. Its only public declarations
 are explicit-public, declaration-specific-KDoc `SearchSharedLabels` and callback-first
-`SearchContent`: Library API tracks, primitive playback state, plain Shared labels and a composable
+`SearchContent`: Library API tracks, primitive playback state, plain Shared clear/Now Playing labels and a composable
 selection-label formatter that resolves `select_track_format` through structured Compose
 `stringResource` during row composition without a generated resource handle, primitive initial
-scroll position values, selection/visible-ID/scroll/play/dismiss callbacks, a playing-indicator
+scroll position values, selection/visible-ID/scroll/play/playback-completion callbacks, a playing-indicator
 slot, and only `Dp`/`Modifier` layout defaults. No Shared/generated-resource/playback-controller-or-state/
 queue/repository/Koin/platform/database/TagLib/other-implementation type is public. Library API
 and required Compose runtime/UI are public dependencies; core UI, Foundation, resources, and Miuix
@@ -82,14 +82,16 @@ are implementation-only. Shared declares exactly `implementation(projects.featur
 taglib, Koin, another implementation, app, or iOS export. `feature/search/README.md` is not part
 of this migration.
 
-Shared directly composes `SearchContent` from `LibraryRoutes` and remains the sole facade. It owns
-route/Back, selection reconciliation/clear, scroll storage, playback queue/restart/dismiss,
+Shared directly composes `SearchContent` below the measured route header from `LibraryRoutes` and
+remains the sole facade. It owns route title/Back, selection reconciliation/clear, scroll storage,
+playback queue/restart/dismiss,
 bottom-bar/Now Playing policy, and `EqualizerStrip`; Search owns query/filter/render/focus/count/
 empty behavior and Search-row interaction. For duplicate IDs, Search uses only an internal
 rendering identity of filtered occurrence index plus track ID, never `track.id` alone; it does not
 alter `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate
-semantics. Search owns exactly its five Search-only localized keys. Shared injects title, clear,
-Now Playing, and composable select-track formatting as values; no resource key duplication or
+semantics. Search owns exactly its five Search-only localized keys. Shared injects clear,
+Now Playing, and composable select-track formatting as values; the title comes from the Shared
+route header; no resource key duplication or
 generated handle crosses the boundary. The normative Search boundary is
 [the approved Search design](superpowers/specs/2026-08-07-search-feature-extraction-design.md).
 
@@ -117,7 +119,8 @@ slots, `sourcePickerActionVisible`, `sourcePickerAvailable`, `mutationsEnabled`,
 Settings owns leaf rendering, source-removal dialog
 visibility, and About retry generation only; this Task-6.4 ruling introduces no Presenter/ViewModel/
 Event/Effect scaffold. Playlist backup stays playlists implementation-owned and is embedded by
-Shared. ThemePreferenceStore, Android/iOS/JVM actuals, system dark preference, Koin binding,
+Shared. About and licenses callbacks carry localized title strings to Shared route entries, which
+render titles without importing Settings resources. ThemePreferenceStore, Android/iOS/JVM actuals, system dark preference, Koin binding,
 selected-mode persistence/collection, and root theme application stay Shared; theme mode and
 palettes stay core UI.
 
@@ -190,6 +193,14 @@ modal content inline instead of publishing to the window host, so the parameter 
 presentation only and never Back or dismissal authority. `HausWindowOverlayPublisher` is public
 `:core:ui` API, the feature keeps its `core:ui` edge implementation-scoped, and Shared keeps its own
 direct `core:ui` dependency; no facade, dependency change, or new public surface follows.
+
+Now Playing player dismissal follows the explicit composition boundary. Shared creates and gates
+the downward sheet gesture by player visibility, protected-window-overlay state, and
+`NowPlayingPanel.Controls`, then passes it through `NowPlayingScreen` to only the non-interactive
+artwork and leading spacer in `NowPlayingContent`. Shared remains the only owner of whole-player
+dismissal and Back arbitration; features receive no shell state or navigation authority. The Queue
+header's downward gesture invokes its existing close callback to return to Controls, while Queue
+body scrolling/reordering and the accessible Back chip remain local.
 
 API/implementation splits are demand-driven and require a real stable contract.
 Do not create `:core:network`, speculative modules, or empty state/event/effect/
@@ -371,6 +382,21 @@ on core database, and the Android-only core-database variant transitivity reache
 androidApp through Shared. This is an existing process-bootstrap placement, not a new
 Android Context contract; old-path/duplicate/header/ordering controls apply.
 
+### Adaptive shell geometry
+
+Shared takes one window snapshot: physical system bars and display cutouts are
+unioned without IME, while keyboard height remains a separate foreground-owned
+value. Covered routes do not consume a modal editor's IME. Expanded Now Playing
+uses `NowPlayingSafeFrame` from that same snapshot, including horizontal edges;
+features do not independently read whole-window safe insets.
+
+The common route header grows with canonical title typography and system text
+scale, with the same height reserved above every route in that layout class.
+Settings exposes Shared Back; compact tool routes omit primary navigation while
+wide navigation stays visible without a selected primary destination. Expanded
+Controls provides a named Close player action through the same Shared Back owner
+as its gesture; its adjacent noninteractive region remains draggable.
+
 ### Home And Detail Declarations
 
 The literal declarations below are the current binding authority, copied from the
@@ -408,8 +434,8 @@ public sealed interface LibraryDetailSummary {
 }
 ```
 
-`LibrarySharedLabels` has exactly twelve members, and no playlist-only label returns. Shared
-supplies `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`, `libraryTitle`,
+`LibrarySharedLabels` has exactly eleven members, and no playlist-only label returns. Shared
+supplies `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`,
 `albumArt`, `albumArtwork`, and `nowPlayingBadge` as `String` values, and
 `selectTrack: @Composable (String) -> String` plus
 `trackArtistAlbum: @Composable (String, String) -> String`; the feature owns the default
@@ -472,7 +498,7 @@ public fun DrillDownView(
     title: String,
     summary: LibraryDetailSummary,
     tracks: List<Track>,
-    topBarArtworkTrack: Track?,
+    representativeArtworkTrack: Track?,
     currentTrackId: String?,
     selectionPage: LibrarySelectionPage,
     selectionModeActive: Boolean,
@@ -512,16 +538,16 @@ selection/browse/visible/scroll/bottom-bar policy, and playback queue/restart be
 
 ### Resources And Metadata
 
-The exhaustive resource ledger separates the twelve labels injected through
+The exhaustive resource ledger separates the eleven labels injected through
 `LibrarySharedLabels` from Shared-only resolver keys, names all moved Library keys, and
 requires EN/ZH multiset/absence controls; `selected` is removed from both final catalogs
-only if no production/test consumer exists. The 2026-08-10 design's twelve-row consumer
+only if no production/test consumer exists. The 2026-08-10 design's consumer
 resolver mapping remains the authority for its retained album-artwork and track-artist-album
 consumers and for Shared-only `play`/`pause`; its former library-queue heading row is
 superseded, and the Queue heading is playlists-owned `queue_title`. The remediation design
 supersedes only injected-label membership and ownership, as represented by the current
-twelve-member `LibrarySharedLabels` contract: it removes the `playlists`, `playlistsAccessibility`,
-and `libraryQueue` members and adds `libraryTitle`, `addFavorite`, and `removeFavorite`.
+`LibrarySharedLabels` contract: it removes the `playlists`, `playlistsAccessibility`, `libraryQueue`,
+and now-header-owned `libraryTitle` members and adds `addFavorite` and `removeFavorite`.
 The 2026-08-10 design's exact picker/scanner declarations, intentional ABI contraction, and
 causal controls remain normative.
 

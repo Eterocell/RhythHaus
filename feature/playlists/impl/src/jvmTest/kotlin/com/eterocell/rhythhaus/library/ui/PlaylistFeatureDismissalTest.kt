@@ -82,13 +82,11 @@ class PlaylistFeatureDismissalTest {
                 destination = destination,
                 appearanceSource = source,
                 dismissalPublisher = publisher,
-                playlistsLabel = "Playlists",
                 loadingLabel = "Loading",
                 loadFailedLabel = "Failed",
                 retryLabel = "Retry",
                 mutationFailedLabel = "Could not save playlist changes",
                 libraryTracks = emptyList(),
-                onBack = {},
                 onOpenPlaylist = {},
                 onOpenSmartPlaylist = { error("Unexpected smart route") },
                 onCreateSmartPlaylist = { _, _, _ ->
@@ -162,12 +160,10 @@ class PlaylistFeatureDismissalTest {
                     appearanceSource =
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
-                    playlistsLabel = "Playlists",
                     loadingLabel = "Loading",
                     loadFailedLabel = "Failed",
                     retryLabel = "Retry",
                     mutationFailedLabel = "Failed",
-                    onBack = {},
                     onOpenPlaylist = { openedStatic += it },
                     onCreate = { _, _ -> },
                     libraryTracks = emptyList(),
@@ -282,7 +278,6 @@ class PlaylistFeatureDismissalTest {
                     appearanceSource = source,
                     dismissalPublisher = publisher,
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onRetry = {},
                     onRename = { _, _ -> },
                     onDelete = {},
@@ -649,7 +644,6 @@ class PlaylistFeatureDismissalTest {
                         appearanceSource = source,
                         dismissalPublisher = publisher,
                         mutationFailedLabel = "Could not save playlist changes",
-                        onBack = {},
                         onRetry = {},
                         onRename = { _, _ -> },
                         onDelete = {},
@@ -717,12 +711,10 @@ class PlaylistFeatureDismissalTest {
                     appearanceSource =
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
-                    playlistsLabel = "Playlists",
                     loadingLabel = "Loading",
                     loadFailedLabel = "Failed",
                     retryLabel = "Retry",
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onOpenPlaylist = {},
                     onCreate = { _, done ->
                         attempts++
@@ -808,7 +800,6 @@ class PlaylistFeatureDismissalTest {
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onRetry = {},
                     onRename = { _, done ->
                         attempts++
@@ -888,7 +879,6 @@ class PlaylistFeatureDismissalTest {
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onRetry = {},
                     onRename = { _, _ -> },
                     onDelete = { done ->
@@ -965,7 +955,6 @@ class PlaylistFeatureDismissalTest {
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
                     mutationFailedLabel = "Could not save playlist changes",
-                    onBack = {},
                     onRetry = {},
                     onRename = { _, _ -> },
                     onDelete = {},

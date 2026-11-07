@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Filter1
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -50,6 +50,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -75,11 +76,13 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.BackChip
+import com.eterocell.rhythhaus.ui.HausIconButton
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
+import rhythhaus.feature.nowplaying.generated.resources.close_player
 import rhythhaus.feature.nowplaying.generated.resources.favorite_action
 import rhythhaus.feature.nowplaying.generated.resources.favorite_selected
 import rhythhaus.feature.nowplaying.generated.resources.favorite_unselected
@@ -127,6 +130,7 @@ internal const val NowPlayingNextTestTag = "NowPlayingNext"
 internal const val NowPlayingShuffleTestTag = "NowPlayingShuffle"
 internal const val NowPlayingRepeatTestTag = "NowPlayingRepeat"
 internal const val NowPlayingContentRootTestTag = "NowPlayingContentRoot"
+internal const val NowPlayingArtworkPaneTestTag = "NowPlayingArtworkPane"
 internal const val NowPlayingCompactLayoutTestTag = "NowPlayingCompactLayout"
 internal const val NowPlayingSplitLayoutTestTag = "NowPlayingSplitLayout"
 internal const val NowPlayingTrackNumberTestTag = "NowPlayingTrackNumber"
@@ -183,7 +187,11 @@ private val PlaybackState.errorRecoveryVisible: Boolean
 
 /**
  * Renders expanded Now Playing and sends the generic left-edge callback to
- * [onBack].
+ * [onBack]. Shared may provide [controlsDismissGestureModifier], which is
+ * applied only to the non-interactive artwork and leading spacer in Controls.
+ *
+ * @param controlsDismissGestureModifier Shared-owned dismissal gesture for the
+ *   non-interactive Controls surface; defaults to no gesture.
  */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
@@ -202,6 +210,7 @@ public fun NowPlayingContent(
     onPanelChange: (NowPlayingPanel) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    controlsDismissGestureModifier: Modifier = Modifier,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
     isCurrentTrackAvailableInLibrary: Boolean = false,
@@ -257,115 +266,148 @@ public fun NowPlayingContent(
                 .testTag(NowPlayingContentRootTestTag)
                 .leftEdgeSwipeBack(onBack),
         color = HausColors.current.background) {
-            BoxWithConstraints(
-                Modifier.fillMaxSize()
-                    .focusRestorer()
-                    .focusGroup()
-                    .safeContentPadding(),
-            ) {
-                val layoutMode =
-                    nowPlayingAdaptiveLayoutModeFor(
-                        maxWidth.value, maxHeight.value)
-                val queueSidebarVisible =
-                    visiblePanel == NowPlayingPanel.Queue &&
-                        layoutMode == NowPlayingAdaptiveLayoutMode.Split &&
-                        nowPlayingQueueSidebarFor(maxWidth.value)
-                if ((visiblePanel == NowPlayingPanel.Controls &&
-                    layoutMode == NowPlayingAdaptiveLayoutMode.Split) ||
-                    queueSidebarVisible) {
-                    val queueSidebar: (@Composable () -> Unit)? =
-                        if (queueSidebarVisible) {
-                            {
-                                Box(Modifier.fillMaxSize()) {
-                                    queueContent()
-                                }
-                            }
-                        } else {
-                            null
+            Column(Modifier.fillMaxSize()) {
+                if (visiblePanel == NowPlayingPanel.Controls) {
+                    Row(Modifier.fillMaxWidth()) {
+                        HausIconButton(
+                            onClick = onBack,
+                            modifier =
+                                Modifier.size(48.dp).testTag("NowPlayingClose"),
+                            backgroundColor = Color.Transparent,
+                            minWidth = 48.dp,
+                            minHeight = 48.dp,
+                        ) {
+                            Icon(
+                                Icons.Filled.KeyboardArrowDown,
+                                stringResource(Res.string.close_player),
+                                tint = HausColors.current.textPrimary,
+                            )
                         }
-                    WideNowPlayingLayout(
-                        track,
-                        playbackState,
-                        playbackController,
-                        labels,
-                        artworkLoader,
-                        uiState,
-                        brush,
-                        favoriteTrackIds,
-                        guardedOnSetTrackFavorite,
-                        isCurrentTrackAvailableInLibrary,
-                        sleepTimerState,
-                        onOpenLyrics = {
-                            onPanelChange(NowPlayingPanel.Lyrics)
-                        },
-                        onOpenTimer = {
-                            onPanelChange(NowPlayingPanel.Timer)
-                        },
-                        onOpenQueue = {
-                            onPanelChange(NowPlayingPanel.Queue)
-                        },
-                        queueContent = queueSidebar,
-                    )
-                } else {
-                    when (visiblePanel) {
-                        NowPlayingPanel.Controls ->
-                            CompactNowPlayingLayout(
-                                track,
-                                playbackState,
-                                playbackController,
-                                labels,
-                                artworkLoader,
-                                uiState,
-                                brush,
-                                favoriteTrackIds,
-                                guardedOnSetTrackFavorite,
-                                isCurrentTrackAvailableInLibrary,
-                                sleepTimerState,
-                                onOpenLyrics = {
-                                    onPanelChange(NowPlayingPanel.Lyrics)
-                                },
-                                onOpenTimer = {
-                                    onPanelChange(NowPlayingPanel.Timer)
-                                },
-                                onOpenQueue = {
-                                    onPanelChange(NowPlayingPanel.Queue)
-                                },
-                            )
-                        NowPlayingPanel.Lyrics ->
-                            LyricsPanel(
-                                lines = lyrics,
-                                rawLyrics = checkNotNull(lyricsText),
-                                positionMillis = uiState.positionMillis,
-                                onDismiss = {
-                                    onPanelChange(NowPlayingPanel.Controls)
-                                },
-                            )
-                        NowPlayingPanel.Timer ->
-                            PlayerSubpanel(
-                                title =
-                                    stringResource(
-                                        Res.string.sleep_timer_title),
-                                onBack = {
-                                    onPanelChange(NowPlayingPanel.Controls)
-                                },
-                                modifier =
-                                    Modifier.testTag(
-                                        NowPlayingTimerPanelTestTag),
-                            ) {
-                                SleepTimerPanel(
-                                    sleepTimerState = sleepTimerState,
-                                    onArmSleepTimer = onArmSleepTimer,
-                                    onArmSleepTimerAfterCompletions =
-                                        onArmSleepTimerAfterCompletions,
-                                    onCancelSleepTimer = onCancelSleepTimer,
-                                )
-                            }
-                        NowPlayingPanel.Queue ->
-                            Box(
-                                Modifier.fillMaxSize()
-                                    .testTag(NowPlayingQueuePanelTestTag)) {
-                                    queueContent()
+                        Spacer(
+                            Modifier.weight(1f)
+                                .height(48.dp)
+                                .then(controlsDismissGestureModifier))
+                    }
+                }
+                BoxWithConstraints(
+                    Modifier.fillMaxSize().focusRestorer().focusGroup(),
+                ) {
+                    val layoutMode =
+                        nowPlayingAdaptiveLayoutModeFor(
+                            maxWidth.value, maxHeight.value)
+                    val queueSidebarVisible =
+                        visiblePanel == NowPlayingPanel.Queue &&
+                            layoutMode == NowPlayingAdaptiveLayoutMode.Split &&
+                            nowPlayingQueueSidebarFor(maxWidth.value)
+                    if ((visiblePanel == NowPlayingPanel.Controls &&
+                        layoutMode == NowPlayingAdaptiveLayoutMode.Split) ||
+                        queueSidebarVisible) {
+                        val queueSidebar: (@Composable () -> Unit)? =
+                            if (queueSidebarVisible) {
+                                {
+                                    Box(Modifier.fillMaxSize()) {
+                                        queueContent()
+                                    }
                                 }
+                            } else {
+                                null
+                            }
+                        WideNowPlayingLayout(
+                            track,
+                            playbackState,
+                            playbackController,
+                            labels,
+                            artworkLoader,
+                            uiState,
+                            brush,
+                            favoriteTrackIds,
+                            guardedOnSetTrackFavorite,
+                            isCurrentTrackAvailableInLibrary,
+                            sleepTimerState,
+                            onOpenLyrics = {
+                                onPanelChange(NowPlayingPanel.Lyrics)
+                            },
+                            onOpenTimer = {
+                                onPanelChange(NowPlayingPanel.Timer)
+                            },
+                            onOpenQueue = {
+                                onPanelChange(NowPlayingPanel.Queue)
+                            },
+                            queueContent = queueSidebar,
+                            artworkMaximumSide = null,
+                            controlsDismissGestureModifier =
+                                controlsDismissGestureModifier,
+                        )
+                    } else {
+                        when (visiblePanel) {
+                            NowPlayingPanel.Controls ->
+                                CompactNowPlayingLayout(
+                                    track,
+                                    playbackState,
+                                    playbackController,
+                                    labels,
+                                    artworkLoader,
+                                    uiState,
+                                    brush,
+                                    favoriteTrackIds,
+                                    guardedOnSetTrackFavorite,
+                                    isCurrentTrackAvailableInLibrary,
+                                    sleepTimerState,
+                                    onOpenLyrics = {
+                                        onPanelChange(NowPlayingPanel.Lyrics)
+                                    },
+                                    onOpenTimer = {
+                                        onPanelChange(NowPlayingPanel.Timer)
+                                    },
+                                    onOpenQueue = {
+                                        onPanelChange(NowPlayingPanel.Queue)
+                                    },
+                                    artworkMaximumSide =
+                                        nowPlayingCompactArtworkSideFor(
+                                                maxWidth.value,
+                                                maxHeight.value,
+                                                LocalDensity.current.fontScale,
+                                            )
+                                            .dp,
+                                    controlsDismissGestureModifier =
+                                        controlsDismissGestureModifier,
+                                )
+                            NowPlayingPanel.Lyrics ->
+                                LyricsPanel(
+                                    lines = lyrics,
+                                    rawLyrics = checkNotNull(lyricsText),
+                                    positionMillis = uiState.positionMillis,
+                                    onDismiss = {
+                                        onPanelChange(NowPlayingPanel.Controls)
+                                    },
+                                )
+                            NowPlayingPanel.Timer ->
+                                PlayerSubpanel(
+                                    title =
+                                        stringResource(
+                                            Res.string.sleep_timer_title),
+                                    onBack = {
+                                        onPanelChange(NowPlayingPanel.Controls)
+                                    },
+                                    modifier =
+                                        Modifier.testTag(
+                                            NowPlayingTimerPanelTestTag),
+                                ) {
+                                    SleepTimerPanel(
+                                        sleepTimerState = sleepTimerState,
+                                        onArmSleepTimer = onArmSleepTimer,
+                                        onArmSleepTimerAfterCompletions =
+                                            onArmSleepTimerAfterCompletions,
+                                        onCancelSleepTimer = onCancelSleepTimer,
+                                    )
+                                }
+                            NowPlayingPanel.Queue ->
+                                Box(
+                                    Modifier.fillMaxSize()
+                                        .testTag(NowPlayingQueuePanelTestTag)) {
+                                        queueContent()
+                                    }
+                        }
                     }
                 }
             }
@@ -381,7 +423,7 @@ private fun NowPlayingArtworkPane(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.testTag(NowPlayingArtworkPaneTestTag),
         cornerRadius = 32.dp,
         colors =
             CardDefaults.defaultColors(
@@ -781,15 +823,29 @@ private fun CompactNowPlayingLayout(
     onOpenLyrics: () -> Unit,
     onOpenTimer: () -> Unit,
     onOpenQueue: () -> Unit,
+    artworkMaximumSide: androidx.compose.ui.unit.Dp,
+    controlsDismissGestureModifier: Modifier,
 ) {
     Column(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)) {
-            Spacer(Modifier.height(18.dp))
+            Spacer(
+                Modifier.fillMaxWidth()
+                    .height(18.dp)
+                    .then(controlsDismissGestureModifier),
+            )
             NowPlayingArtworkPane(
-                track, labels, artworkLoader, brush, Modifier.fillMaxWidth())
+                track,
+                labels,
+                artworkLoader,
+                brush,
+                Modifier.widthIn(max = artworkMaximumSide)
+                    .fillMaxWidth()
+                    .align(Alignment.CenterHorizontally)
+                    .then(controlsDismissGestureModifier),
+            )
             Spacer(Modifier.height(18.dp))
             // The error-only recovery section can outgrow the bounded compact
             // viewport; keep the pane scrollable so the scrubber and transport
@@ -838,6 +894,8 @@ private fun WideNowPlayingLayout(
     onOpenTimer: () -> Unit,
     onOpenQueue: () -> Unit,
     queueContent: (@Composable () -> Unit)? = null,
+    artworkMaximumSide: androidx.compose.ui.unit.Dp? = null,
+    controlsDismissGestureModifier: Modifier,
 ) {
     Row(
         Modifier.testTag(NowPlayingSplitLayoutTestTag)
@@ -853,7 +911,14 @@ private fun WideNowPlayingLayout(
                         labels,
                         artworkLoader,
                         brush,
-                        Modifier.fillMaxWidth().aspectRatio(1f))
+                        Modifier.fillMaxWidth()
+                            .then(
+                                artworkMaximumSide?.let {
+                                    Modifier.widthIn(max = it)
+                                } ?: Modifier,
+                            )
+                            .aspectRatio(1f)
+                            .then(controlsDismissGestureModifier))
                 }
             Box(
                 Modifier.fillMaxHeight().weight(1f).widthIn(min = 320.dp),

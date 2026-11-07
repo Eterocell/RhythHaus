@@ -22,6 +22,19 @@ public fun nowPlayingAdaptiveLayoutModeFor(
     }
 
 /**
+ * Maximum square cover side for the compact player at the current safe bounds.
+ */
+internal fun nowPlayingCompactArtworkSideFor(
+    widthDp: Float,
+    heightDp: Float,
+    fontScale: Float,
+): Float {
+    val horizontalSide = widthDp - 40f
+    val verticalSide = (heightDp - 300f) / fontScale.coerceAtLeast(1f)
+    return minOf(horizontalSide, verticalSide).coerceAtLeast(96f)
+}
+
+/**
  * Whether a queue sidebar can sit beside the artwork and controls without
  * shrinking either pane below 320dp.
  */

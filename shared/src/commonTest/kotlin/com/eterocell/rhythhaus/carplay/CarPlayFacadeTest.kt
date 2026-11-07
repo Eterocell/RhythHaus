@@ -401,13 +401,19 @@ class CarPlayFacadeTest {
     fun transportCommandsRouteThroughTheSharedPlaybackController() =
         runBlocking {
             val fixture = Fixture()
+            suspend fun advertisedSnapshot(trackId: String): CarPlaySnapshot =
+                fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == trackId &&
+                        it.playback.selectionGeneration ==
+                            fixture.controller.state.value.selectionGeneration
+                }
             val tracks = listOf(track("first"), track("second"))
             fixture.addTracks(*tracks.toTypedArray())
             fixture.publish(libraryRevision = 1L)
             fixture.controller.setQueue(tracks.map { it.toPlayable() }, "first")
             fixture.awaitTrack("first", PlaybackStatus.Paused)
 
-            var snapshot = fixture.snapshot()
+            var snapshot = advertisedSnapshot("first")
             assertEquals(
                 CarPlayCommandResult.Applied,
                 fixture.transport(snapshot, "first") {
@@ -424,7 +430,7 @@ class CarPlayFacadeTest {
             )
             fixture.awaitTrack("first", PlaybackStatus.Playing)
 
-            snapshot = fixture.snapshot()
+            snapshot = advertisedSnapshot("first")
             assertEquals(
                 CarPlayCommandResult.Applied,
                 fixture.transport(snapshot, "first") {
@@ -441,7 +447,7 @@ class CarPlayFacadeTest {
             )
             fixture.awaitTrack("first", PlaybackStatus.Paused)
 
-            snapshot = fixture.snapshot()
+            snapshot = advertisedSnapshot("first")
             assertEquals(
                 CarPlayCommandResult.Applied,
                 fixture.transport(snapshot, "first") {
@@ -458,7 +464,7 @@ class CarPlayFacadeTest {
             )
             fixture.awaitTrack("second", PlaybackStatus.Playing)
 
-            snapshot = fixture.snapshot()
+            snapshot = advertisedSnapshot("second")
             assertEquals(
                 CarPlayCommandResult.Applied,
                 fixture.transport(snapshot, "second") {
@@ -478,7 +484,7 @@ class CarPlayFacadeTest {
                 fixture.controller.state.first { it.positionMillis == 1_250L }
             }
 
-            snapshot = fixture.snapshot()
+            snapshot = advertisedSnapshot("second")
             assertEquals(
                 CarPlayCommandResult.Applied,
                 fixture.transport(snapshot, "second") {

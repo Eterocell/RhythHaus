@@ -540,7 +540,7 @@ class SearchSelectionPoliciesJvmTest {
             libraryTracks = tracks,
             currentTrackId = currentId,
             isPlaying = playing,
-            labels = SearchSharedLabels("Search", "Clear", "Now playing"),
+            labels = SearchSharedLabels("Clear", "Now playing"),
             selectTrackLabel = { "Select $it" },
             selectionModeActive = selection,
             selectedTrackIds = selectedIds,

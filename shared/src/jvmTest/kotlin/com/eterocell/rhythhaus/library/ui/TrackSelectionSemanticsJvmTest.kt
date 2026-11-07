@@ -369,7 +369,6 @@ class TrackSelectionSemanticsJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",

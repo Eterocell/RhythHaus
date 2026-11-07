@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -269,50 +270,52 @@ class PlaylistQueueSaveJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun savesFrozenVisibleOccurrencesWithDuplicatesAfterQueueChanges() =
-        runComposeUiTest {
-            val originalLocale = Locale.getDefault()
-            Locale.setDefault(Locale.ENGLISH)
-            try {
-                var playback by
-                    mutableStateOf(
-                        playbackState(
-                            "current",
-                            "past" to "old",
-                            "current" to "a",
-                            "next" to "b",
-                            "again" to "a",
-                        ),
+    fun saveDraftSurvivesTrackChangeAndResize() = runComposeUiTest {
+        val originalLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        try {
+            var playback by
+                mutableStateOf(
+                    playbackState(
+                        "current",
+                        "past" to "old",
+                        "current" to "a",
+                        "next" to "b",
+                        "again" to "a",
+                    ),
+                )
+            var request: Pair<String, List<String>>? = null
+            var width by mutableStateOf(390.dp)
+            setContent {
+                Box(Modifier.size(width, 640.dp)) {
+                    QueueContentTestHost(
+                        playbackState = playback,
+                        destinationId = "queue-save",
+                        onSaveQueueAsPlaylist = { name, ids, done ->
+                            request = name to ids
+                            done(
+                                PlaylistStateAction.SnapshotConfirmed(
+                                    PlaylistSnapshot()))
+                        },
                     )
-                var request: Pair<String, List<String>>? = null
-                setContent {
-                    Box(Modifier.size(600.dp, 400.dp)) {
-                        QueueContentTestHost(
-                            playbackState = playback,
-                            destinationId = "queue-save",
-                            onSaveQueueAsPlaylist = { name, ids, done ->
-                                request = name to ids
-                                done(
-                                    PlaylistStateAction.SnapshotConfirmed(
-                                        PlaylistSnapshot()))
-                            },
-                        )
-                    }
                 }
-                onAllNodes(hasText("old")).assertCountEquals(1)
-                onAllNodes(hasText("Save queue as playlist"))[0].performClick()
-                playback = playbackState("replacement", "replacement" to "new")
-                waitForIdle()
-                onAllNodes(hasText("Playlist name"))[0].performTextInput(
-                    " Road trip ")
-                onAllNodes(hasText("Create playlist"))[0].performClick()
-                assertEquals("Road trip" to listOf("a", "b", "a"), request)
-                assertEquals("replacement", playback.currentOccurrenceId)
-                onAllNodes(hasText("Playlist name")).assertCountEquals(0)
-            } finally {
-                Locale.setDefault(originalLocale)
             }
+            onAllNodes(hasText("old")).assertCountEquals(1)
+            onAllNodes(hasText("Save queue as playlist"))[0].performClick()
+            onNodeWithTag("playlist-name-field").performTextInput(" Road trip ")
+            playback = playbackState("replacement", "replacement" to "new")
+            width = 1040.dp
+            waitForIdle()
+            onNodeWithTag("playlist-name-field")
+                .assertTextContains(" Road trip ")
+            onAllNodes(hasText("Create playlist"))[0].performClick()
+            assertEquals("Road trip" to listOf("a", "b", "a"), request)
+            assertEquals("replacement", playback.currentOccurrenceId)
+            onAllNodes(hasText("Playlist name")).assertCountEquals(0)
+        } finally {
+            Locale.setDefault(originalLocale)
         }
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test

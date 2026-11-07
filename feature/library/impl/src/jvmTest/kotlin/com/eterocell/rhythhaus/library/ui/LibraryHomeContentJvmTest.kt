@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -8,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -18,35 +21,56 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackMetadataEditorData
+import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class LibraryHomeContentJvmTest {
-    init {
+    private var previousLocale: Locale? = null
+
+    @BeforeTest
+    fun setEnglishLocale() {
+        previousLocale = Locale.getDefault()
         Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @AfterTest
+    fun restoreLocale() {
+        previousLocale?.let(Locale::setDefault)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -1037,7 +1061,8 @@ class LibraryHomeContentJvmTest {
         onAllNodes(hasText("Artist · 3 tracks")).assertCountEquals(1)
         onAllNodes(hasText("Soloist · 1 tracks")).assertCountEquals(1)
         onNode(hasText("album a")).assertIsDisplayed()
-        onNode(hasText("Library", substring = false)).assertIsDisplayed()
+        onNodeWithTag("library-track-count").assertIsDisplayed()
+        onAllNodes(hasText("Library", substring = false)).assertCountEquals(0)
         onNode(hasText("4 tracks", substring = false)).assertIsDisplayed()
 
         val albumA =
@@ -1441,6 +1466,436 @@ class LibraryHomeContentJvmTest {
             )
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun visibleBrowseAndFilteredEmptyStatesReflowWithoutLosingMode() =
+        runComposeUiTest {
+            val longTitle =
+                "A deliberately long local track title that remains accessible after reflow"
+            val adaptiveTracks =
+                List(12) { index ->
+                    track(
+                        id = "adaptive-${index + 1}",
+                        title =
+                            if (index == 11) longTitle
+                            else "Track ${index + 1}",
+                        album = "Album ${index % 4}",
+                        artist = "Artist ${index % 5}",
+                        disc = 1,
+                        number = index + 1,
+                    )
+                }
+            val favoriteIds = setOf(adaptiveTracks.first().id)
+            val artworkIds = setOf(adaptiveTracks[1].id)
+            val history =
+                adaptiveTracks
+                    .mapIndexed { index, track ->
+                        track.id to
+                            TrackPlayHistory(track.id, 1L, index.toLong())
+                    }
+                    .toMap()
+            val createdAt =
+                adaptiveTracks
+                    .mapIndexed { index, track ->
+                        track.id to index.toLong()
+                    }
+                    .toMap()
+            var width by mutableStateOf(360.dp)
+            var pageMargin by mutableStateOf(16.dp)
+            var fontScale by mutableStateOf(1f)
+            var browseMode by mutableStateOf(BrowseMode.Albums)
+            var browseQuery by mutableStateOf(LibraryBrowseQuery())
+            val visibleReports = mutableListOf<List<String>>()
+            val scrollPositions = mutableListOf<Pair<Int, Int>>()
+
+            setContent {
+                val systemDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides
+                        Density(systemDensity.density, fontScale),
+                    LocalHausDesktopDensity provides (width >= 720.dp),
+                ) {
+                    Box(
+                        Modifier.size(width, 760.dp)
+                            .padding(horizontal = pageMargin),
+                    ) {
+                        LibraryHomeContent(
+                            tracks = adaptiveTracks,
+                            browseMode = browseMode,
+                            playHistory = history,
+                            createdAtByTrackId = createdAt,
+                            folderPickerLauncher = StubPicker,
+                            sourcePickerActionVisible = false,
+                            importMessage = null,
+                            scanProgress = null,
+                            mutationsEnabled = true,
+                            currentTrackId = null,
+                            selectionModeActive = false,
+                            selectedTrackIds = emptySet(),
+                            labels = labels(),
+                            homeBackdrop = null,
+                            artworkLoader = { null },
+                            onBrowseModeChange = { browseMode = it },
+                            onClearLibrary = {},
+                            onCancelScan = {},
+                            onOpenAlbum = {},
+                            onOpenArtist = {},
+                            onPlayTrack = { _, _ -> },
+                            onToggleSelection = {},
+                            onStartSelection = {},
+                            onVisibleTrackIdsChanged = {
+                                visibleReports += it
+                            },
+                            onScrollPositionChanged = { index, offset ->
+                                scrollPositions += index to offset
+                            },
+                            bottomContentPadding = 0.dp,
+                            favoriteTrackIds = favoriteIds,
+                            artworkTrackIds = artworkIds,
+                            onSetTrackFavorite = { _, _ -> },
+                            browseQuery = browseQuery,
+                            sourceOptions = emptyList(),
+                            sourceIdByTrackId =
+                                adaptiveTracks.associate { it.id to "source" },
+                            modifiedAtByTrackId =
+                                adaptiveTracks.associate { it.id to 1L },
+                            onBrowseSortChange = {},
+                            onBrowseSortDirectionChange = {},
+                            onBrowseFavoriteOnlyChange = {
+                                browseQuery =
+                                    browseQuery.copy(favoriteOnly = it)
+                            },
+                            onBrowseArtworkOnlyChange = {
+                                browseQuery = browseQuery.copy(artworkOnly = it)
+                            },
+                            onBrowseSourceIdChange = {
+                                browseQuery = browseQuery.copy(sourceId = it)
+                            },
+                        )
+                    }
+                }
+            }
+
+            onNodeWithContentDescription("Album Album 0").assertIsDisplayed()
+            onNodeWithTag("library-track-count").assertIsDisplayed()
+            onAllNodes(
+                    hasText("AL", substring = false),
+                    useUnmergedTree = true,
+                )
+                .assertCountEquals(4)
+            onNodeWithContentDescription("Artists").performClick()
+            waitForIdle()
+            assertEquals(BrowseMode.Artists, browseMode)
+            onNodeWithContentDescription("Songs").performClick()
+            waitForIdle()
+            assertEquals(BrowseMode.Songs, browseMode)
+
+            fun selectCompactMode(label: String, mode: BrowseMode) {
+                onNodeWithTag("library-secondary-browse-menu").performClick()
+                onNodeWithText(label, substring = false).performClick()
+                waitForIdle()
+                assertEquals(mode, browseMode)
+            }
+
+            selectCompactMode("Favorites", BrowseMode.Favorites)
+            selectCompactMode("Recently played", BrowseMode.RecentlyPlayed)
+            selectCompactMode("Recently added", BrowseMode.RecentlyAdded)
+            val visibleBeforeResize = visibleReports.last()
+
+            width = 840.dp
+            pageMargin = 24.dp
+            fontScale = 2f
+            waitForIdle()
+            assertEquals(BrowseMode.RecentlyAdded, browseMode)
+            assertEquals(visibleBeforeResize, visibleReports.last())
+            onNodeWithTag("library-browse-mode-row").assertExists()
+            onNodeWithContentDescription("Recently played")
+                .assertWidthIsAtLeast(176.dp)
+            onNodeWithTag("library-browse-mode-row").performTouchInput {
+                swipe(
+                    center + Offset(center.x * 0.6f, 0f),
+                    center - Offset(center.x * 0.6f, 0f),
+                )
+            }
+            onNodeWithContentDescription("Recently played").performClick()
+            waitForIdle()
+            assertEquals(BrowseMode.RecentlyPlayed, browseMode)
+            onNodeWithContentDescription("Recently added").performClick()
+            waitForIdle()
+            assertEquals(BrowseMode.RecentlyAdded, browseMode)
+            onNodeWithTag("library-browse-mode-row").performTouchInput {
+                swipe(
+                    center - Offset(center.x * 0.6f, 0f),
+                    center + Offset(center.x * 0.6f, 0f),
+                )
+            }
+            onNodeWithContentDescription("Songs").performClick()
+            waitForIdle()
+            assertEquals(BrowseMode.Songs, browseMode)
+            browseQuery =
+                LibraryBrowseQuery(favoriteOnly = true, artworkOnly = true)
+            waitForIdle()
+            onNodeWithText("No tracks match the current filters.")
+                .assertIsDisplayed()
+            assertEquals(emptyList(), visibleReports.last())
+
+            width = 1_200.dp
+            pageMargin = 32.dp
+            fontScale = 1f
+            waitForIdle()
+            assertEquals(BrowseMode.Songs, browseMode)
+            assertTrue(browseQuery.favoriteOnly && browseQuery.artworkOnly)
+            onNodeWithText("No tracks match the current filters.")
+                .assertIsDisplayed()
+            onNodeWithTag("library-track-count")
+                .assertLeftPositionInRootIsEqualTo(32.dp)
+            onAllNodes(hasText("Library", substring = false))
+                .assertCountEquals(0)
+
+            browseQuery = LibraryBrowseQuery()
+            waitForIdle()
+            onNodeWithText(longTitle).performScrollTo().assertIsDisplayed()
+            width = 840.dp
+            pageMargin = 24.dp
+            fontScale = 2f
+            waitForIdle()
+            onNodeWithText(longTitle).performScrollTo().assertIsDisplayed()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun selectionAndMetadataDraftStayReachableAt200Percent() =
+        runComposeUiTest {
+            val selectedTrack =
+                track(
+                    id = "metadata-track",
+                    title = "A long selection title that remains accessible",
+                    album = "Album",
+                    artist = "Artist",
+                    disc = 1,
+                    number = 1,
+                )
+            val metadata =
+                TrackMetadataEditorData(
+                    scannedTrack =
+                        LibraryTrack(
+                            id = selectedTrack.id,
+                            sourceId = "source",
+                            sourceLocalKey = "metadata-track.mp3",
+                            audioSource =
+                                AudioSource.FilePath(
+                                    "/music/metadata-track.mp3"),
+                            displayName = "metadata-track.mp3",
+                            title = selectedTrack.title,
+                            artist = selectedTrack.artist,
+                            album = selectedTrack.album,
+                            durationMillis = 100_000L,
+                            sizeBytes = null,
+                            modifiedAtEpochMillis = null,
+                            lastSeenScanId = "scan",
+                            createdAtEpochMillis = 1L,
+                            updatedAtEpochMillis = 1L,
+                        ),
+                    overrides = TrackMetadataOverride(),
+                )
+            var editorOpen by mutableStateOf(false)
+            var draft by mutableStateOf(TrackMetadataDraft())
+            var failed by mutableStateOf(false)
+            val saveRequests = mutableListOf<TrackMetadataOverride>()
+
+            setContent {
+                val systemDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(systemDensity.density, 2f),
+                ) {
+                    Box(
+                        Modifier.size(390.dp, 760.dp)
+                            .padding(horizontal = 16.dp),
+                    ) {
+                        LibraryHomeContent(
+                            tracks = listOf(selectedTrack),
+                            browseMode = BrowseMode.Songs,
+                            playHistory = emptyMap(),
+                            createdAtByTrackId = emptyMap(),
+                            folderPickerLauncher = StubPicker,
+                            sourcePickerActionVisible = false,
+                            importMessage = null,
+                            scanProgress = null,
+                            mutationsEnabled = true,
+                            currentTrackId = null,
+                            selectionModeActive = true,
+                            selectedTrackIds = setOf(selectedTrack.id),
+                            labels = labels(),
+                            homeBackdrop = null,
+                            artworkLoader = { null },
+                            onBrowseModeChange = {},
+                            onClearLibrary = {},
+                            onCancelScan = {},
+                            onOpenAlbum = {},
+                            onOpenArtist = {},
+                            onPlayTrack = { _, _ -> },
+                            onToggleSelection = {},
+                            onStartSelection = {},
+                            onVisibleTrackIdsChanged = {},
+                            onScrollPositionChanged = { _, _ -> },
+                            bottomContentPadding = 0.dp,
+                            favoriteTrackIds = emptySet(),
+                            artworkTrackIds = emptySet(),
+                            onSetTrackFavorite = { _, _ -> },
+                            browseQuery = LibraryBrowseQuery(),
+                            sourceOptions = emptyList(),
+                            sourceIdByTrackId =
+                                mapOf(selectedTrack.id to "source"),
+                            modifiedAtByTrackId = mapOf(selectedTrack.id to 1L),
+                            onBrowseSortChange = {},
+                            onBrowseSortDirectionChange = {},
+                            onBrowseFavoriteOnlyChange = {},
+                            onBrowseArtworkOnlyChange = {},
+                            onBrowseSourceIdChange = {},
+                            onEditTrackMetadata = { trackId ->
+                                assertEquals(selectedTrack.id, trackId)
+                                failed = false
+                                editorOpen = true
+                            },
+                        )
+                        if (editorOpen) {
+                            TrackMetadataEditDialog(
+                                data = metadata,
+                                draft = draft,
+                                saving = false,
+                                failed = failed,
+                                onDraft = { draft = it },
+                                onDismiss = { editorOpen = false },
+                                onSave = {
+                                    saveRequests += it
+                                    failed = true
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            onNode(
+                    hasContentDescription(selectedTrack.title) and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ToggleableState,
+                            ToggleableState.On,
+                        ),
+                )
+                .assertIsDisplayed()
+            onNodeWithTag("track-row-more-actions")
+                .performScrollTo()
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+            onNodeWithTag("track-row-edit-metadata").performClick()
+            onNodeWithTag("metadata-title")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+                .performTextInput("Draft title")
+            onNodeWithContentDescription("Title Restore")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+            onNodeWithTag("metadata-restore-all")
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+            assertEquals(TrackMetadataDraft(), draft)
+            onNodeWithTag("metadata-title").performTextInput("Draft title")
+            onNodeWithTag("metadata-save")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+            onNodeWithText("Cancel")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+            assertEquals("Draft title", draft.title)
+            assertTrue(saveRequests.isEmpty())
+
+            onNodeWithTag("track-row-more-actions")
+                .performScrollTo()
+                .performClick()
+            onNodeWithTag("track-row-edit-metadata").performClick()
+            onNodeWithTag("metadata-save")
+                .assertIsDisplayed()
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+            onNodeWithText("Could not save changes.", substring = true)
+                .performScrollTo()
+                .assertIsDisplayed()
+            assertEquals("Draft title", draft.title)
+            assertEquals(
+                listOf(TrackMetadataOverride(title = "Draft title")),
+                saveRequests,
+            )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun simplifiedChineseFilteredEmptyStateRemainsReachable() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+        try {
+            runComposeUiTest {
+                var browseMode by mutableStateOf(BrowseMode.Songs)
+                setContent {
+                    Box(Modifier.size(390.dp, 760.dp)) {
+                        LibraryHomeContent(
+                            tracks = tracks(),
+                            browseMode = browseMode,
+                            playHistory = emptyMap(),
+                            createdAtByTrackId = emptyMap(),
+                            folderPickerLauncher = StubPicker,
+                            sourcePickerActionVisible = false,
+                            importMessage = null,
+                            scanProgress = null,
+                            mutationsEnabled = true,
+                            currentTrackId = null,
+                            selectionModeActive = false,
+                            selectedTrackIds = emptySet(),
+                            labels = labels(),
+                            homeBackdrop = null,
+                            artworkLoader = { null },
+                            onBrowseModeChange = { browseMode = it },
+                            onClearLibrary = {},
+                            onCancelScan = {},
+                            onOpenAlbum = {},
+                            onOpenArtist = {},
+                            onPlayTrack = { _, _ -> },
+                            onToggleSelection = {},
+                            onStartSelection = {},
+                            onVisibleTrackIdsChanged = {},
+                            onScrollPositionChanged = { _, _ -> },
+                            bottomContentPadding = 0.dp,
+                            favoriteTrackIds = emptySet(),
+                            artworkTrackIds = emptySet(),
+                            onSetTrackFavorite = { _, _ -> },
+                            browseQuery =
+                                LibraryBrowseQuery(favoriteOnly = true),
+                            sourceOptions = emptyList(),
+                            sourceIdByTrackId = emptyMap(),
+                            modifiedAtByTrackId = emptyMap(),
+                            onBrowseSortChange = {},
+                            onBrowseSortDirectionChange = {},
+                            onBrowseFavoriteOnlyChange = {},
+                            onBrowseArtworkOnlyChange = {},
+                            onBrowseSourceIdChange = {},
+                        )
+                    }
+                }
+                onNodeWithText("没有符合当前筛选条件的曲目。").assertIsDisplayed()
+                onNodeWithTag("library-secondary-browse-menu").performClick()
+                onNodeWithText("最近添加").performClick()
+                waitForIdle()
+                assertEquals(BrowseMode.RecentlyAdded, browseMode)
+                onNodeWithText("没有符合当前筛选条件的曲目。").assertIsDisplayed()
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
     private fun session(status: ScanStatus, id: String = "scan"): ScanSession =
         ScanSession(
             id = id,
@@ -1539,7 +1994,6 @@ class LibraryHomeContentJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",

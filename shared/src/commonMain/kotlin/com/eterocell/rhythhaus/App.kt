@@ -71,6 +71,7 @@ import com.eterocell.rhythhaus.playlistbackup.rememberPlaylistTrackReadability
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.settings.SettingsAppearanceState
 import com.eterocell.rhythhaus.settings.deviceAudioSourceDisplayName
+import com.eterocell.rhythhaus.systemui.AppSystemBarAppearance
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausDynamicColorRoles
@@ -2222,6 +2223,10 @@ internal fun RhythHausTheme(
     MaterialTheme(colorScheme = material3Scheme) {
         MiuixTheme(colors = miuixScheme) {
             CompositionLocalProvider(LocalHausColors provides colors) {
+                AppSystemBarAppearance(
+                    statusBarSurface = colors.background,
+                    navigationBarSurface = colors.background,
+                )
                 content()
             }
         }

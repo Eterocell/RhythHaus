@@ -9,8 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -21,10 +19,11 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
@@ -54,7 +53,7 @@ class DrillDownViewJvmTest {
                         LibraryDetailSummary.Album(
                             trackCount = 3, artist = "Artist"),
                     tracks = tracks(),
-                    topBarArtworkTrack = null,
+                    representativeArtworkTrack = null,
                     currentTrackId = "t-2",
                     selectionPage = LibrarySelectionPage.Album("Album B"),
                     selectionModeActive = false,
@@ -78,6 +77,7 @@ class DrillDownViewJvmTest {
         waitForIdle()
 
         onAllNodes(hasText("3 tracks · Artist")).assertCountEquals(1)
+        onNodeWithText("AL").assertIsDisplayed()
         onAllNodes(hasText("Now playing")).assertCountEquals(1)
         assertEquals(tracks().map(Track::id), visibleReports.last())
         assertEquals(listOf(0, 0), scrolls.first().toList())
@@ -101,7 +101,7 @@ class DrillDownViewJvmTest {
                                     artist = "Artist",
                                 ),
                             tracks = tracks().take(1),
-                            topBarArtworkTrack = null,
+                            representativeArtworkTrack = null,
                             currentTrackId = null,
                             selectionPage =
                                 LibrarySelectionPage.Album("Album B"),
@@ -162,7 +162,7 @@ class DrillDownViewJvmTest {
                         title = "Album B",
                         summary = summary,
                         tracks = tracks(),
-                        topBarArtworkTrack = null,
+                        representativeArtworkTrack = null,
                         currentTrackId = null,
                         selectionPage = LibrarySelectionPage.Album("Album B"),
                         selectionModeActive = selectionModeActive,
@@ -214,7 +214,7 @@ class DrillDownViewJvmTest {
                             LibraryDetailSummary.Album(
                                 trackCount = 2, artist = null),
                         tracks = tracks().take(2),
-                        topBarArtworkTrack = null,
+                        representativeArtworkTrack = null,
                         currentTrackId = null,
                         selectionPage = LibrarySelectionPage.Album("Album B"),
                         selectionModeActive = false,
@@ -253,7 +253,7 @@ class DrillDownViewJvmTest {
                             LibraryDetailSummary.Album(
                                 trackCount = 3, artist = "Artist"),
                         tracks = tracks(),
-                        topBarArtworkTrack = null,
+                        representativeArtworkTrack = null,
                         currentTrackId = null,
                         selectionPage = LibrarySelectionPage.Album("Album B"),
                         selectionModeActive = false,
@@ -302,7 +302,7 @@ class DrillDownViewJvmTest {
                             LibraryDetailSummary.Album(
                                 trackCount = 3, artist = "Artist"),
                         tracks = tracks(),
-                        topBarArtworkTrack = null,
+                        representativeArtworkTrack = null,
                         currentTrackId = null,
                         selectionPage = LibrarySelectionPage.Album("Album B"),
                         selectionModeActive = selectionModeActive,
@@ -330,53 +330,9 @@ class DrillDownViewJvmTest {
             assertEquals(listOf("t-1"), toggles)
         }
 
-    @Test
-    fun unscrollableDetailDisablesOverscroll() {
-        assertTrue(
-            !shouldApplyDrillDownOverscroll(
-                canScrollForward = false,
-                canScrollBackward = false,
-            ),
-        )
-    }
-
-    @Test
-    fun scrollableDetailRetainsOverscroll() {
-        assertTrue(
-            shouldApplyDrillDownOverscroll(
-                canScrollForward = true,
-                canScrollBackward = false,
-            ),
-        )
-    }
-
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun unscrollableDetailDoesNotCollapseMiuixChromeOnUpwardDrag() =
-        runComposeUiTest {
-            lateinit var scrollBehavior:
-                top.yukonga.miuix.kmp.basic.ScrollBehavior
-            setContent {
-                scrollBehavior =
-                    rememberMiuixTopAppBarScrollBehavior(
-                        canScroll = { false },
-                    )
-            }
-            waitForIdle()
-
-            assertEquals(
-                Offset.Zero,
-                scrollBehavior.nestedScrollConnection.onPreScroll(
-                    available = Offset(0f, -64f),
-                    source = NestedScrollSource.UserInput,
-                ),
-            )
-            assertEquals(0f, scrollBehavior.state.heightOffset)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun backButtonAndScrollReportsReachShared() = runComposeUiTest {
+    fun detailPaneTitleAndEdgeBackRemainAvailable() = runComposeUiTest {
         var backCount = 0
         val scrolls = mutableListOf<Pair<Int, Int>>()
         setContent {
@@ -387,7 +343,7 @@ class DrillDownViewJvmTest {
                         LibraryDetailSummary.Album(
                             trackCount = 12, artist = "Artist"),
                     tracks = twelveTracks(),
-                    topBarArtworkTrack = null,
+                    representativeArtworkTrack = null,
                     currentTrackId = null,
                     selectionPage = LibrarySelectionPage.Album("Album B"),
                     selectionModeActive = false,
@@ -410,8 +366,19 @@ class DrillDownViewJvmTest {
         }
         waitForIdle()
 
-        onAllNodes(hasContentDescription("Back"))[0].performSemanticsAction(
-            SemanticsActions.OnClick)
+        onNode(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.PaneTitle,
+                    "Album B",
+                ),
+            )
+            .assertIsDisplayed()
+        onNode(hasScrollToIndexAction()).performTouchInput {
+            swipe(
+                start = Offset(1f, center.y),
+                end = Offset(130f, center.y),
+            )
+        }
         waitForIdle()
         assertEquals(1, backCount)
 
@@ -433,7 +400,7 @@ class DrillDownViewJvmTest {
                             LibraryDetailSummary.Album(
                                 trackCount = 40, artist = "Artist"),
                         tracks = fortyTracks(),
-                        topBarArtworkTrack = null,
+                        representativeArtworkTrack = null,
                         currentTrackId = null,
                         selectionPage = LibrarySelectionPage.Album("Album B"),
                         selectionModeActive = false,
@@ -512,7 +479,6 @@ class DrillDownViewJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",

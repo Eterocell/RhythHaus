@@ -424,4 +424,43 @@ class OnboardingScreenJvmTest {
             assertEquals(1, finishes)
             assertEquals(1, skips)
         }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun onboardingUsesFullSafeContentAndExposesOnlyExistingActions() =
+        runComposeUiTest {
+            var skips = 0
+            var finishes = 0
+            setContent {
+                OnboardingScreen(
+                    3,
+                    OnboardingPlatformGuidance.MacOS,
+                    false,
+                    null,
+                    false,
+                    {},
+                    {},
+                    { skips++ },
+                    { finishes++ },
+                    {},
+                    Modifier.size(390.dp, 640.dp),
+                )
+            }
+            val root =
+                onNodeWithTag(OnboardingRootTestTag)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertEquals(390f, root.width)
+            assertEquals(640f, root.height)
+            onNodeWithTag(OnboardingSkipTestTag)
+                .performScrollTo()
+                .assertIsDisplayed()
+            onNodeWithTag(OnboardingFinishTestTag)
+                .performScrollTo()
+                .assertIsDisplayed()
+            onNodeWithTag(OnboardingSkipTestTag).performClick()
+            onNodeWithTag(OnboardingFinishTestTag).performClick()
+            assertEquals(1, skips)
+            assertEquals(1, finishes)
+        }
 }

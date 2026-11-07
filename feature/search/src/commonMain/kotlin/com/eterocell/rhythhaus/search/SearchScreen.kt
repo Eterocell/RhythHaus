@@ -7,16 +7,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,7 +45,6 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
-import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.search.generated.resources.Res
@@ -80,13 +74,10 @@ internal val SearchRenderedText =
  * unchanged labels stable across recomposition; callers provide
  * already-localized text.
  *
- * @property title Search route title.
  * @property clear Label for the query-clear action.
  * @property nowPlaying Accessibility state for the current result.
  */
 public data class SearchSharedLabels(
-    /** Search route title resolved by Shared. */
-    public val title: String,
     /** Query-clear action label resolved by Shared. */
     public val clear: String,
     /** Current-result accessibility state resolved by Shared. */
@@ -102,8 +93,7 @@ public data class SearchSharedLabels(
  * @param currentTrackId Current playback track ID, or null when no track is
  *   current.
  * @param isPlaying Whether the current track is actively playing.
- * @param labels Shared-owned localized Search title, clear, and Now Playing
- *   labels.
+ * @param labels Shared-owned localized clear and Now Playing labels.
  * @param selectTrackLabel Composably resolves the localized long-press/content
  *   description for a title using Shared's structured
  *   `stringResource(select_track_format, title)` when Search composes a row; no
@@ -120,9 +110,9 @@ public data class SearchSharedLabels(
  *   offset.
  * @param onPlayTrack Requests playback of ordered filtered results at the
  *   selected result.
+ * @param onDismiss Requests Shared completion after a result starts playback.
  * @param onEditTrackMetadata Requests app-local metadata editing by track ID,
  *   or null when editing is unavailable.
- * @param onDismiss Requests Shared route dismissal.
  * @param playingIndicator Composes Shared-owned current-playing indication in a
  *   playing row.
  * @param bottomContentPadding Reserved trailing list space for Shared shell
@@ -199,15 +189,8 @@ public fun SearchContent(
                 modifier = Modifier.fillMaxSize(),
                 color = HausColors.current.background) {
                     Column(
-                        Modifier.fillMaxSize()
-                            .windowInsetsPadding(
-                                WindowInsets.safeDrawing.only(
-                                    WindowInsetsSides.Horizontal +
-                                        WindowInsetsSides.Top))
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        Modifier.fillMaxSize().padding(vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            RhythHausTopAppBar(
-                                title = labels.title, onBack = onDismiss)
                             Box(
                                 Modifier.fillMaxWidth()
                                     .border(
@@ -257,8 +240,8 @@ public fun SearchContent(
                                                         },
                                                         backgroundColor =
                                                             Color.Transparent,
-                                                        minWidth = 40.dp,
-                                                        minHeight = 40.dp) {
+                                                        minWidth = 48.dp,
+                                                        minHeight = 48.dp) {
                                                             Text(
                                                                 labels.clear,
                                                                 color =

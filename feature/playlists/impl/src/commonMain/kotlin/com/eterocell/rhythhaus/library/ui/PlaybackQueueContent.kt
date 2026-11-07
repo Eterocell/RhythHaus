@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,6 +38,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -289,6 +292,9 @@ public fun PlaybackQueueContent(
         mutableStateOf<PlaylistDismissalAppearance?>(null)
     }
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val dismissThresholdPx = with(density) { 72.dp.toPx() }
+    val currentOnClose by rememberUpdatedState(onClose)
     val rowCenters = remember { mutableStateMapOf<String, Float>() }
     LaunchedEffect(playbackState) { confirmedState = playbackState }
     val presentation =
@@ -308,7 +314,20 @@ public fun PlaybackQueueContent(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier.fillMaxWidth().pointerInput(dismissThresholdPx) {
+                    var totalDrag = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { totalDrag = 0f },
+                        onVerticalDrag = { _, amount -> totalDrag += amount },
+                        onDragEnd = {
+                            if (totalDrag >= dismissThresholdPx) {
+                                currentOnClose()
+                            }
+                        },
+                        onDragCancel = { totalDrag = 0f },
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BackChip(
@@ -328,7 +347,11 @@ public fun PlaybackQueueContent(
         }
         LazyColumn(
             modifier =
-                Modifier.fillMaxWidth().weight(1f).focusRestorer().focusGroup(),
+                Modifier.fillMaxWidth()
+                    .weight(1f)
+                    .testTag("NowPlayingQueueList")
+                    .focusRestorer()
+                    .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (presentation.saveableTrackIds.isNotEmpty()) {

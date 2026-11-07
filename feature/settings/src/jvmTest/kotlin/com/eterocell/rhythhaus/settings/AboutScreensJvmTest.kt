@@ -1,17 +1,31 @@
 package com.eterocell.rhythhaus.settings
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import com.eterocell.rhythhaus.theme.HausSpacing
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,6 +40,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
+import rhythhaus.core.ui.generated.resources.back
+import rhythhaus.feature.settings.generated.resources.Res as SettingsRes
+import rhythhaus.feature.settings.generated.resources.about_open_source_libraries
 
 public class AboutScreensJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -34,7 +53,12 @@ public class AboutScreensJvmTest {
         runComposeUiTest {
             var opened = ""
             var libraries = 0
+            var librariesTitle = ""
+            var expectedLibrariesTitle = ""
             setContent {
+                expectedLibrariesTitle =
+                    stringResource(
+                        SettingsRes.string.about_open_source_libraries)
                 CompositionLocalProvider(
                     LocalUriHandler provides
                         object : UriHandler {
@@ -42,7 +66,12 @@ public class AboutScreensJvmTest {
                                 opened = uri
                             }
                         }) {
-                        SettingsAboutScreen({ libraries++ }, {})
+                        SettingsAboutScreen(
+                            { title ->
+                                libraries++
+                                librariesTitle = title
+                            },
+                            {})
                     }
             }
             onNodeWithText("RhythHaus").assertExists()
@@ -55,8 +84,159 @@ public class AboutScreensJvmTest {
                 .performScrollTo()
                 .performClick()
             onNodeWithTag("about-logo", useUnmergedTree = true).assertExists()
+            val appIcon =
+                onNodeWithTag("about-app-icon", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+            val expectedIconSize =
+                with(appIcon.layoutInfo.density) {
+                    AboutScreenLayoutPolicy.logoImageSize.toPx()
+                }
+            assertEquals(expectedIconSize, appIcon.boundsInRoot.width, 1f)
+            assertEquals(expectedIconSize, appIcon.boundsInRoot.height, 1f)
             assertEquals(RhythHausSourceUrl, opened)
             assertEquals(1, libraries)
+            assertEquals(expectedLibrariesTitle, librariesTitle)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun hiddenRouteHeaderStartsAboutContentAtDocumentedPagePadding():
+        Unit = runComposeUiTest {
+        val topContentPadding = 24.dp
+        var backLabel = ""
+        setContent {
+            backLabel = stringResource(CoreUiRes.string.back)
+            CompositionLocalProvider(
+                LocalUriHandler provides
+                    object : UriHandler {
+                        override fun openUri(uri: String): Unit = Unit
+                    }) {
+                    Box(Modifier.size(600.dp, 1_200.dp)) {
+                        SettingsAboutScreen(
+                            onOpenLibraries = {},
+                            onDismiss = {},
+                            showRouteHeader = false,
+                            topContentPadding = topContentPadding,
+                        )
+                    }
+                }
+        }
+        val logo =
+            onNodeWithTag("about-logo", useUnmergedTree = true)
+                .fetchSemanticsNode()
+        // The identity block carries its own `HausSpacing.xl` top padding, so
+        // the rendered top is the page padding plus that inset. A retained
+        // empty header item would add `itemSpacing` on top of it.
+        val expectedTop =
+            with(logo.layoutInfo.density) {
+                (topContentPadding +
+                        CompactSettingsLayoutPolicy.verticalPagePadding +
+                        HausSpacing.xl +
+                        (88.dp - AboutScreenLayoutPolicy.logoImageSize) / 2)
+                    .toPx()
+            }
+        assertEquals(
+            expectedTop,
+            logo.boundsInRoot.top,
+            absoluteTolerance = 1f,
+            message =
+                "the About content must begin at the documented page " +
+                    "padding without an empty header list item",
+        )
+        onAllNodes(
+                hasClickAction() and
+                    hasAnyDescendant(hasContentDescription(backLabel)),
+                useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun longLicenseContentRemainsScrollableAt200Percent(): Unit =
+        runComposeUiTest {
+            val libraries =
+                (1..24).joinToString(",") { index ->
+                    """{"uniqueId":"test:license-$index","artifactVersion":"1","name":"License entry $index","description":"Library metadata $index","licenses":["MIT"]}"""
+                }
+            val catalog =
+                """{"libraries":[$libraries],"licenses":{"MIT":{"name":"MIT License","url":"https://example.test/mit","content":"${"Long license text. ".repeat(80)}","spdxId":"MIT","hash":"MIT"}}}"""
+            val libraryListState = LazyListState()
+            setContent {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(1f, 2f),
+                ) {
+                    Box(Modifier.size(390.dp, 640.dp)) {
+                        OpenSourceLibrariesContent(
+                            readCatalogJson = { catalog },
+                            onDismiss = {},
+                            libraryListState = libraryListState,
+                        )
+                    }
+                }
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                runCatching { onNodeWithTag(AboutLoadedTestTag).assertExists() }
+                    .isSuccess
+            }
+            val loadedBounds =
+                onNodeWithTag(AboutLoadedTestTag)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertTrue(loadedBounds.height > 300f)
+            onNodeWithTag(AboutLoadedTestTag).assertIsDisplayed()
+            assertEquals(0, libraryListState.firstVisibleItemIndex)
+            onNodeWithTag(AboutLibrariesListTestTag).performScrollToIndex(23)
+            waitForIdle()
+            assertTrue(libraryListState.firstVisibleItemIndex > 0)
+            assertTrue(
+                libraryListState.layoutInfo.visibleItemsInfo.lastOrNull()?.let {
+                    it.index == 23
+                } == true,
+            )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun hiddenRouteHeaderKeepsLicensesFlushWithThePagePadding(): Unit =
+        runComposeUiTest {
+            var showRouteHeader by mutableStateOf(false)
+            val libraryListState = LazyListState()
+            val loadCatalog: suspend () -> String = { catalogJson }
+            setContent {
+                Box(Modifier.size(390.dp, 640.dp)) {
+                    OpenSourceLibrariesContent(
+                        readCatalogJson = loadCatalog,
+                        onDismiss = {},
+                        showRouteHeader = showRouteHeader,
+                        libraryListState = libraryListState,
+                    )
+                }
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                runCatching { onNodeWithTag(AboutLoadedTestTag).assertExists() }
+                    .isSuccess
+            }
+            val density =
+                onNodeWithTag(AboutLibrariesListTestTag)
+                    .fetchSemanticsNode()
+                    .layoutInfo
+                    .density
+            val headerSpacing =
+                with(density) {
+                    CompactSettingsLayoutPolicy.itemSpacing.roundToPx()
+                }
+            runOnIdle {
+                assertEquals(
+                    0, libraryListState.layoutInfo.beforeContentPadding)
+            }
+            runOnIdle { showRouteHeader = true }
+            waitForIdle()
+            runOnIdle {
+                assertEquals(
+                    headerSpacing,
+                    libraryListState.layoutInfo.beforeContentPadding,
+                )
+            }
         }
 
     @Test

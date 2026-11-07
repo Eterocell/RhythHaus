@@ -105,6 +105,8 @@ import rhythhaus.shared.generated.resources.remove as sharedRemove
 import rhythhaus.shared.generated.resources.settings as sharedSettings
 
 class SettingsRouteAdapterJvmTest {
+    private var adapterDismiss: () -> Unit = {}
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun crossfadeRouteMapsAcceptedOwnerStateAcrossEnglishAndChineseRecreation() {
@@ -136,9 +138,7 @@ class SettingsRouteAdapterJvmTest {
                         }
                         val expectedLabel =
                             if (locale == Locale.ENGLISH) "5 seconds" else "5 秒"
-                        onNodeWithTag(
-                                "settings-crossfade-5", useUnmergedTree = true)
-                            .performScrollTo()
+                        settingsControl("settings-crossfade-5")
                             .assertIsSelected()
                         onNodeWithText(expectedLabel, useUnmergedTree = true)
                             .assertExists()
@@ -155,9 +155,7 @@ class SettingsRouteAdapterJvmTest {
                                     CrossfadeDuration.Seconds5,
                             )
                         for ((tag, duration) in choices) {
-                            onNodeWithTag(tag, useUnmergedTree = true)
-                                .performScrollTo()
-                                .performClick()
+                            settingsControl(tag).performClick()
                             waitUntil(timeoutMillis = 5_000) {
                                 !owner.state.value.isBusy &&
                                     owner.state.value.selectedDuration ==
@@ -167,9 +165,7 @@ class SettingsRouteAdapterJvmTest {
                                 duration, preferences.selectedDuration.value)
                             consumerGeneration++
                             waitForIdle()
-                            onNodeWithTag(tag, useUnmergedTree = true)
-                                .performScrollTo()
-                                .assertIsSelected()
+                            settingsControl(tag).assertIsSelected()
                         }
                     } finally {
                         controller.release()
@@ -205,9 +201,7 @@ class SettingsRouteAdapterJvmTest {
                         )
                     }
                 }
-                onNodeWithTag("settings-crossfade-3", useUnmergedTree = true)
-                    .performScrollTo()
-                    .performClick()
+                settingsControl("settings-crossfade-3").performClick()
                 waitUntil(timeoutMillis = 5_000) { owner.state.value.isBusy }
                 onNodeWithTag("settings-crossfade-5", useUnmergedTree = true)
                     .assertIsSelected()
@@ -238,8 +232,7 @@ class SettingsRouteAdapterJvmTest {
                     preferences.selectedDuration.value)
 
                 preferences.failWrites = false
-                onNodeWithTag("settings-crossfade-3", useUnmergedTree = true)
-                    .performClick()
+                settingsControl("settings-crossfade-3").performClick()
                 waitUntil(timeoutMillis = 5_000) {
                     !owner.state.value.isBusy &&
                         owner.state.value.selectedDuration ==
@@ -630,19 +623,18 @@ class SettingsRouteAdapterJvmTest {
                 hasTracks = true,
                 folderPickerLauncher = launcher.value,
                 onSharedLabelsResolved = { labels.value = it },
-                onShowSettingsAbout = {
+                onShowSettingsAbout = { title ->
                     aboutCalls++
-                    route.value = LibraryRoute.SettingsAbout
+                    route.value = LibraryRoute.SettingsAbout(title)
                 },
                 pushRoute = {},
-                onShowOpenSourceLibraries = {
+                onShowOpenSourceLibraries = { title ->
                     librariesCalls++
-                    route.value = LibraryRoute.OpenSourceLibraries
+                    route.value = LibraryRoute.OpenSourceLibraries(title)
                 },
             )
         }
         val shared = labels.value ?: error("Shared labels were not resolved")
-        onNode(hasText(shared.settings), useUnmergedTree = true).assertExists()
         settingsControl("settings-picker").performScrollTo().performClick()
         assertEquals(1, picker.launchCalls)
         onNode(hasText(shared.addMusicFolder), useUnmergedTree = true)
@@ -674,11 +666,11 @@ class SettingsRouteAdapterJvmTest {
 
         settingsControl("settings-about").performClick()
         assertEquals(1, aboutCalls)
-        assertEquals(LibraryRoute.SettingsAbout, route.value)
+        assertIs<LibraryRoute.SettingsAbout>(route.value)
         waitForIdle()
         onNodeWithTag("about-libraries", useUnmergedTree = true).performClick()
         assertEquals(1, librariesCalls)
-        assertEquals(LibraryRoute.OpenSourceLibraries, route.value)
+        assertIs<LibraryRoute.OpenSourceLibraries>(route.value)
         waitForIdle()
         waitUntil(timeoutMillis = 5_000) {
             onAllNodesWithTag("about-libraries-loaded", useUnmergedTree = true)
@@ -728,75 +720,46 @@ class SettingsRouteAdapterJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun settingsDismissAndSettingsToAboutClearDialogAndReturnDoesNotReopen() =
+    fun settingsClearDialogRemainsOwnedUntilItsExplicitDismissal() =
         runComposeUiTest {
             val appState = LibraryAppState(null)
             appState.pushRoute(LibraryRoute.Settings)
             val route = mutableStateOf(appState.navigation.current)
-            val backLabel = mutableStateOf<String?>(null)
             var settingsDismissCalls = 0
-            var aboutDismissCalls = 0
+            fun dismissCurrentRoute() {
+                when (route.value) {
+                    LibraryRoute.Settings -> settingsDismissCalls++
+                    else -> Unit
+                }
+                val session =
+                    assertIs<LibraryBackBeginResult.Started>(
+                            appState.beginBack())
+                        .session
+                session.complete()
+                route.value = appState.navigation.current
+            }
             setContent {
                 Harness(
                     route = route,
                     appState = appState,
                     hasTracks = true,
-                    onCoreBackLabelResolved = { backLabel.value = it },
-                    onShowSettingsAbout = {
-                        appState.pushRoute(LibraryRoute.SettingsAbout)
-                        route.value = appState.navigation.current
-                    },
                     pushRoute = {},
-                    onDismiss = {
-                        when (route.value) {
-                            LibraryRoute.Settings -> settingsDismissCalls++
-                            LibraryRoute.SettingsAbout -> aboutDismissCalls++
-                            else -> Unit
-                        }
-                        val session =
-                            assertIs<LibraryBackBeginResult.Started>(
-                                    appState.beginBack())
-                                .session
-                        session.complete()
-                        route.value = appState.navigation.current
-                    },
+                    onDismiss = ::dismissCurrentRoute,
                 )
             }
-            val settingsDestination = appState.activeDestinationId
-            val back =
-                backLabel.value ?: error("Core Back label was not resolved")
+            adapterDismiss = ::dismissCurrentRoute
             settingsControl("settings-clear").performClick()
-            scrollSettingsTo(backButton(back))
-            onNode(backButton(back), useUnmergedTree = false)
-                .performSemanticsAction(SemanticsActions.OnClick)
             waitForIdle()
-            assertEquals(1, settingsDismissCalls)
-            assertEquals(0, aboutDismissCalls)
-            assertEquals(LibraryRoute.Home, route.value)
-            assertEquals(LibraryRoute.Home, appState.navigation.current)
-            assertNull(appState.pendingBackSession)
-            onAllNodes(dialogMatcher, useUnmergedTree = true)
-                .assertCountEquals(0)
-
-            appState.pushRoute(LibraryRoute.Settings)
-            route.value = appState.navigation.current
-            waitForIdle()
-            assertTrue(appState.activeDestinationId != settingsDestination)
-            onAllNodes(dialogMatcher, useUnmergedTree = true)
-                .assertCountEquals(0)
-
-            settingsControl("settings-clear").performClick()
-            settingsControl("settings-about")
-                .performSemanticsAction(SemanticsActions.OnClick)
-            waitForIdle()
-            assertEquals(LibraryRoute.SettingsAbout, route.value)
-            onNode(backButton(back), useUnmergedTree = false).performClick()
-            waitForIdle()
+            assertEquals(0, settingsDismissCalls)
             assertEquals(LibraryRoute.Settings, route.value)
-            assertEquals(1, aboutDismissCalls)
+            assertEquals(LibraryRoute.Settings, appState.navigation.current)
+            assertNull(appState.pendingBackSession)
+            onAllNodes(dialogMatcher, useUnmergedTree = true)
+                .assertCountEquals(1)
+            onNodeWithTag("settings-clear-dismiss", useUnmergedTree = true)
+                .performClick()
             onAllNodes(dialogMatcher, useUnmergedTree = true)
                 .assertCountEquals(0)
-            assertNull(appState.pendingBackSession)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -806,10 +769,10 @@ class SettingsRouteAdapterJvmTest {
         appState.pushRoute(LibraryRoute.Settings)
         val route = mutableStateOf(appState.navigation.current)
         val unrelatedRecomposition = mutableStateOf(false)
-        val backLabel = mutableStateOf<String?>(null)
         var aboutCalls = 0
         var librariesCalls = 0
         val dismissals = mutableListOf<LibraryRoute>()
+        var dismissRoute: () -> Unit = {}
 
         fun synchronizeRouteFromState() {
             route.value = appState.navigation.current
@@ -820,43 +783,43 @@ class SettingsRouteAdapterJvmTest {
                 route = route,
                 appState = appState,
                 hasTracks = unrelatedRecomposition.value,
-                onCoreBackLabelResolved = { backLabel.value = it },
-                onShowSettingsAbout = {
+                onShowSettingsAbout = { title ->
                     aboutCalls++
-                    appState.pushRoute(LibraryRoute.SettingsAbout)
+                    appState.pushRoute(LibraryRoute.SettingsAbout(title))
                     synchronizeRouteFromState()
                 },
                 pushRoute = {},
-                onShowOpenSourceLibraries = {
+                onShowOpenSourceLibraries = { title ->
                     librariesCalls++
-                    appState.pushRoute(LibraryRoute.OpenSourceLibraries)
+                    appState.pushRoute(LibraryRoute.OpenSourceLibraries(title))
                     synchronizeRouteFromState()
                 },
                 onDismiss = {
-                    val outgoing = route.value
-                    dismissals += outgoing
-                    val session =
-                        assertIs<LibraryBackBeginResult.Started>(
-                                appState.beginBack())
-                            .session
-                    val target =
-                        assertIs<LibraryBackTarget.Route>(session.target)
-                    assertEquals(
-                        outgoing, target.routePreview.outgoingEntry.route)
-                    assertEquals(
-                        LibraryBackBeginResult.Suppressed, appState.beginBack())
-                    session.complete()
-                    assertNull(appState.pendingBackSession)
-                    assertEquals(
-                        target.routePreview.incomingEntry.route,
-                        appState.navigation.current)
-                    assertEquals(outgoing, route.value)
-                    synchronizeRouteFromState()
-                },
+                        val outgoing = route.value
+                        dismissals += outgoing
+                        val session =
+                            assertIs<LibraryBackBeginResult.Started>(
+                                    appState.beginBack())
+                                .session
+                        val target =
+                            assertIs<LibraryBackTarget.Route>(session.target)
+                        assertEquals(
+                            outgoing, target.routePreview.outgoingEntry.route)
+                        assertEquals(
+                            LibraryBackBeginResult.Suppressed,
+                            appState.beginBack())
+                        session.complete()
+                        assertNull(appState.pendingBackSession)
+                        assertEquals(
+                            target.routePreview.incomingEntry.route,
+                            appState.navigation.current)
+                        assertEquals(outgoing, route.value)
+                        synchronizeRouteFromState()
+                    }
+                        .also { dismissRoute = it },
             )
         }
-        val back = backLabel.value ?: error("Core Back label was not resolved")
-
+        adapterDismiss = dismissRoute
         val settingsDestination = appState.activeDestinationId
         unrelatedRecomposition.value = true
         waitForIdle()
@@ -866,43 +829,42 @@ class SettingsRouteAdapterJvmTest {
         settingsControl("settings-about").performClick()
         waitForIdle()
         assertEquals(1, aboutCalls)
-        assertEquals(LibraryRoute.SettingsAbout, route.value)
+        assertIs<LibraryRoute.SettingsAbout>(route.value)
         val aboutDestination = appState.activeDestinationId
+        val aboutRoute = route.value
         assertTrue(aboutDestination != settingsDestination)
 
         onNodeWithTag("about-libraries", useUnmergedTree = true).performClick()
         waitForIdle()
         assertEquals(1, librariesCalls)
-        assertEquals(LibraryRoute.OpenSourceLibraries, route.value)
+        assertIs<LibraryRoute.OpenSourceLibraries>(route.value)
         val librariesDestination = appState.activeDestinationId
+        val librariesRoute = route.value
         assertTrue(librariesDestination != aboutDestination)
 
-        onNode(backButton(back), useUnmergedTree = false).performClick()
+        onDismissAdapterRoute(route)
         waitForIdle()
-        assertEquals(LibraryRoute.SettingsAbout, route.value)
+        assertEquals(aboutRoute, route.value)
         assertEquals(1, aboutCalls)
         assertEquals(1, librariesCalls)
-        assertEquals(
-            listOf<LibraryRoute>(LibraryRoute.OpenSourceLibraries), dismissals)
+        assertEquals(listOf(librariesRoute), dismissals)
         assertEquals(aboutDestination, appState.activeDestinationId)
 
-        onNode(backButton(back), useUnmergedTree = false).performClick()
+        onDismissAdapterRoute(route)
         waitForIdle()
         assertEquals(LibraryRoute.Settings, route.value)
         assertEquals(settingsDestination, appState.activeDestinationId)
         assertEquals(
-            listOf(
-                LibraryRoute.OpenSourceLibraries, LibraryRoute.SettingsAbout),
+            listOf(librariesRoute, aboutRoute),
             dismissals,
         )
 
-        scrollSettingsTo(backButton(back))
-        onNode(backButton(back), useUnmergedTree = false).performClick()
+        onDismissAdapterRoute(route)
         waitForIdle()
         assertEquals(
             listOf(
-                LibraryRoute.OpenSourceLibraries,
-                LibraryRoute.SettingsAbout,
+                librariesRoute,
+                aboutRoute,
                 LibraryRoute.Settings,
             ),
             dismissals,
@@ -1600,9 +1562,7 @@ class SettingsRouteAdapterJvmTest {
             onAllNodesWithTag(
                     "settings-notification-recovery", useUnmergedTree = true)
                 .assertCountEquals(1)
-            onNodeWithTag(
-                    "settings-notification-recovery", useUnmergedTree = true)
-                .performClick()
+            settingsControl("settings-notification-recovery").performClick()
             assertEquals(1, requests)
             assertEquals(0, settings)
         }
@@ -1623,9 +1583,7 @@ class SettingsRouteAdapterJvmTest {
             onAllNodesWithTag(
                     "settings-notification-recovery", useUnmergedTree = true)
                 .assertCountEquals(1)
-            onNodeWithTag(
-                    "settings-notification-recovery", useUnmergedTree = true)
-                .performClick()
+            settingsControl("settings-notification-recovery").performClick()
             assertEquals(0, requests)
             assertEquals(1, settings)
         }
@@ -1634,6 +1592,13 @@ class SettingsRouteAdapterJvmTest {
     private fun ComposeUiTest.scrollSettingsTo(matcher: SemanticsMatcher) {
         onNodeWithTag("settings-list", useUnmergedTree = true)
             .performScrollToNode(matcher)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun ComposeUiTest.onDismissAdapterRoute(
+        route: MutableState<LibraryRoute>,
+    ) {
+        adapterDismiss()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -1673,11 +1638,11 @@ class SettingsRouteAdapterJvmTest {
         onRemove: (LibrarySource) -> Unit = {},
         onCancelScan: () -> Unit = {},
         pushRoute: (LibraryRoute) -> Unit = {},
-        onShowSettingsAbout: () -> Unit = {
-            route.value = LibraryRoute.SettingsAbout
+        onShowSettingsAbout: (String) -> Unit = { title ->
+            route.value = LibraryRoute.SettingsAbout(title)
         },
-        onShowOpenSourceLibraries: () -> Unit = {
-            route.value = LibraryRoute.OpenSourceLibraries
+        onShowOpenSourceLibraries: (String) -> Unit = { title ->
+            route.value = LibraryRoute.OpenSourceLibraries(title)
         },
         onDismiss: () -> Unit = {},
         onSharedLabelsResolved: (SharedSettingsLabels) -> Unit = {},

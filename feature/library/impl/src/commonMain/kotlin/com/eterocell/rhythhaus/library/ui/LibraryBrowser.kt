@@ -242,7 +242,6 @@ public sealed interface LibraryDetailSummary {
  *   unavailable.
  * @property clearLibrary Label for clearing the library.
  * @property cancel Label for cancelling an active scan.
- * @property libraryTitle Shared-owned title for the library route.
  * @property albumArt Accessibility label for track-row album thumbnails.
  * @property albumArtwork Accessibility label for album/detail artwork.
  * @property nowPlayingBadge Badge label for the now-playing track.
@@ -260,8 +259,6 @@ public data class LibrarySharedLabels(
     public val clearLibrary: String,
     /** Label for cancelling an active scan. */
     public val cancel: String,
-    /** Shared-owned library page title. */
-    public val libraryTitle: String,
     /** Accessibility label for track-row album thumbnails. */
     public val albumArt: String,
     /** Accessibility label for album/detail artwork. */

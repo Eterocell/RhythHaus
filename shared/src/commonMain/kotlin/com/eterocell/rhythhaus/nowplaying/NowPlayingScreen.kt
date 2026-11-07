@@ -24,7 +24,11 @@ internal fun nowPlayingFavoriteAvailable(
 
 /**
  * Shared composition facade delegating Now Playing presentation to the feature
- * module.
+ * module. [controlsDismissGestureModifier] is applied only to non-interactive
+ * Controls surfaces; Shared remains its gesture and dismissal owner.
+ *
+ * @param controlsDismissGestureModifier Shared-owned gesture attached by the
+ *   caller to the feature's non-interactive Controls surface.
  */
 @Composable
 public fun NowPlayingScreen(
@@ -42,6 +46,7 @@ public fun NowPlayingScreen(
     onPanelChange: (NowPlayingPanel) -> Unit,
     queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    controlsDismissGestureModifier: Modifier = Modifier,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
 ): Unit {
@@ -71,6 +76,7 @@ public fun NowPlayingScreen(
         onPanelChange = onPanelChange,
         queueContent = queueContent,
         modifier = modifier,
+        controlsDismissGestureModifier = controlsDismissGestureModifier,
         favoriteTrackIds = favoriteTrackIds,
         onSetTrackFavorite = onSetTrackFavorite,
         isCurrentTrackAvailableInLibrary =

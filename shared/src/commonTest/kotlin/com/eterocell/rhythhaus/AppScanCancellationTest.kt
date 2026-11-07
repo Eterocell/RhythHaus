@@ -52,19 +52,25 @@ import kotlinx.coroutines.yield
 class AppScanCancellationTest {
     @Test
     fun nativeProcessInitializesCatalogAndRecordsPlaybackWithoutComposition() =
-        assertNativeProcessInitializes(EmptyPlaylistRepository)
+        assertNativeProcessInitializes(
+            playlistRepository = EmptyPlaylistRepository,
+            expectPlaylistReadFailure = false,
+        )
 
     @Test
     fun nativeProcessPublishesLibraryAfterPlaylistReadFailure() =
         assertNativeProcessInitializes(
-            object : PlaylistRepository by EmptyPlaylistRepository {
-                override fun playlists(): List<PlaylistSummary> =
-                    error("playlist read unavailable")
-            },
+            playlistRepository =
+                object : PlaylistRepository by EmptyPlaylistRepository {
+                    override fun playlists(): List<PlaylistSummary> =
+                        error("playlist read unavailable")
+                },
+            expectPlaylistReadFailure = true,
         )
 
     private fun assertNativeProcessInitializes(
-        playlistRepository: PlaylistRepository
+        playlistRepository: PlaylistRepository,
+        expectPlaylistReadFailure: Boolean,
     ) = runBlocking {
         val repository =
             InMemoryLibraryRepository().apply {
@@ -106,16 +112,23 @@ class AppScanCancellationTest {
                 CompletableDeferred<
                     com.eterocell.rhythhaus.carplay.CarPlaySnapshot>()
             val token = facade.observeSnapshots {
+                // Catalog readiness and playlist availability are projected
+                // from
+                // separate flows; the first Ready snapshot may not reflect
+                // both.
                 if (it.libraryStatus ==
-                    com.eterocell.rhythhaus.carplay.CarPlayLibraryStatus.Ready)
+                    com.eterocell.rhythhaus.carplay.CarPlayLibraryStatus
+                        .Ready &&
+                    it.playlistsUnavailable == expectPlaylistReadFailure) {
                     ready.complete(it)
+                }
             }
             val snapshot =
-                kotlinx.coroutines.withTimeout(5_000) { ready.await() }
-            assertEquals(
-                playlistRepository !== EmptyPlaylistRepository,
-                snapshot.playlistsUnavailable)
-            facade.removeSnapshotObserver(token)
+                try {
+                    kotlinx.coroutines.withTimeout(5_000) { ready.await() }
+                } finally {
+                    facade.removeSnapshotObserver(token)
+                }
             val entry = snapshot.categories.first().entries.single()
             val result =
                 CompletableDeferred<

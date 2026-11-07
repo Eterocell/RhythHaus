@@ -96,13 +96,10 @@ Its only explicit-public, declaration-specific-KDoc boundary SHALL include this 
  * Shared-owned wording consumed by [SearchContent]. Value equality keeps unchanged
  * labels stable across recomposition; callers provide already-localized text.
  *
- * @property title Search route title.
  * @property clear Label for the query-clear action.
  * @property nowPlaying Accessibility state for the current result.
  */
 public data class SearchSharedLabels(
-    /** Search route title resolved by Shared. */
-    public val title: String,
     /** Query-clear action label resolved by Shared. */
     public val clear: String,
     /** Current-result accessibility state resolved by Shared. */
@@ -127,7 +124,7 @@ public fun SearchContent(
 )
 ```
 
-No Shared/generated resource/playback controller or state/repository/Koin/platform/database/TagLib/queue type SHALL occur in that boundary. `selectTrackLabel` SHALL composably resolve Shared's `select_track_format` with structured Compose `stringResource` while Search composes a row; no generated resource handle crosses the boundary. `LibraryRoutes` SHALL compose `SearchContent` directly and delete Shared compatibility `SearchScreen` and unused `TagLibReader`. Shared SHALL retain route/Back, selection/reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing policy, and `EqualizerStrip`; Search SHALL retain query/filter/render/focus/count/empty/row interaction. Search SHALL preserve blank-query no results; case-insensitive title/artist/album matching; order, duplicates, and empty metadata; and a private rendering-only LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone. It SHALL be unique without altering public `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search SHALL focus exactly once; clear reset to blank; visible-ID emission only on sequence change; normal activation requesting ordered filtered playback; long press never playing; selection-mode row and checkbox each toggling once without playback; current-row highlight and Now Playing semantics; an indicator only for current+playing; and no artwork/error state. Search SHALL own exactly the five approved EN/ZH keys; Shared SHALL inject title/clear/Now Playing/composable select-track formatting without duplicate keys or resource handles. The approved design is [2026-08-07-search-feature-extraction-design.md](../../../../../docs/superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+No Shared/generated resource/playback controller or state/repository/Koin/platform/database/TagLib/queue type SHALL occur in that boundary. `selectTrackLabel` SHALL composably resolve Shared's `select_track_format` with structured Compose `stringResource` while Search composes a row; no generated resource handle crosses the boundary. `LibraryRoutes` SHALL compose `SearchContent` directly and delete Shared compatibility `SearchScreen` and unused `TagLibReader`. Shared SHALL retain route/Back, selection/reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing policy, and `EqualizerStrip`; Search SHALL retain query/filter/render/focus/count/empty/row interaction. The ordinary Search route title and Back action SHALL come from the Shared route header, not `SearchSharedLabels` or Search content. Search SHALL preserve blank-query no results; case-insensitive title/artist/album matching; order, duplicates, and empty metadata; and a private rendering-only LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone. It SHALL be unique without altering public `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search SHALL focus exactly once; clear reset to blank; visible-ID emission only on sequence change; normal activation requesting ordered filtered playback; long press never playing; selection-mode row and checkbox each toggling once without playback; current-row highlight and Now Playing semantics; an indicator only for current+playing; and no artwork/error state. Search SHALL own exactly the five approved EN/ZH keys; Shared SHALL inject clear/Now Playing/composable select-track formatting without duplicate keys or resource handles. The approved design is [2026-08-07-search-feature-extraction-design.md](../../../../../docs/superpowers/specs/2026-08-07-search-feature-extraction-design.md).
 
 #### Scenario: Search ownership and behavior are verified
 - **WHEN** Task 5.3 is implemented
@@ -171,6 +168,9 @@ The exact `SettingsScreen` boundary SHALL include `sourcePickerActionVisible: Bo
 `clearLibraryDialog: (@Composable () -> Unit)?` for Shared-owned library-maintenance confirmation,
 along with scalar theme/source inputs, source-ID
 callbacks, playlist-backup and nullable scan slots, About/dismiss callbacks, and `Modifier`.
+The About and open-source-library callbacks SHALL carry the localized title string produced by
+Settings-owned resources; Shared SHALL store that value in the destination route and render the
+Shared header without importing or duplicating Settings resources.
 Function KDoc SHALL document parameter behavior in prose/contracts, while declaration-specific KDoc
 is required for every public declaration and every public data property. The picker SHALL hide when
 not visible, use unavailable wording when unavailable, and respect mutation disablement; the clear
@@ -405,7 +405,7 @@ perform existing route-level Back, while local state follows the exact dedicated
   or callback-payload redesign is introduced, and browser overlays may retain `List<LibraryTrack>`
   metadata input.
 
-The ledger SHALL list the twelve label members with their Shared-supplied or Library-default
+The ledger SHALL list the eleven label members with their Shared-supplied or Library-default
 ownership, all Shared-only non-injected keys, all Library-moved keys, and core UI `back`; it SHALL require EN/ZH multiset equality plus duplicate,
 missing, wrong-owner, foreign-key, rendered-resource, and selected-absence controls. Metadata SHALL
 be internal at `com.eterocell.rhythhaus.library.impl`; headers SHALL omit `SharedAudioMetadata`,
@@ -425,16 +425,17 @@ direct-impl-dependency/init-order negatives.
 
 The Studio UI review remediation design's Kotlin declarations SHALL apply exactly and SHALL
 supersede the 2026-08-10 Library extraction design only for the Library UI declarations, their
-defaults, and the injected-label membership and ownership represented by the current twelve-member
-`LibrarySharedLabels` contract. Every Home/Detail API SHALL use `currentTrackId` and no `isPlaying`
+defaults, and the injected-label membership and ownership represented by the current
+`LibrarySharedLabels` contract, with `libraryTitle` supplied by the adaptive Shared route header.
+Every Home/Detail API SHALL use `currentTrackId` and no `isPlaying`
 or `onPlayPause`; every parameter SHALL be required except the single trailing nullable
 `onEditTrackMetadata: ((String) -> Unit)? = null` default; both SHALL accept the required suspend
 artwork loader and preserve its documented behavior. The exact parameter names, types, defaults,
-callbacks, and the twelve `LibrarySharedLabels` members SHALL match
+callbacks, and the current `LibrarySharedLabels` members SHALL match
 `docs/superpowers/specs/2026-10-26-studio-ui-review-remediation-design.md`. The current label
 members SHALL be `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`,
-`libraryTitle`, `albumArt`, `albumArtwork`, `nowPlayingBadge`, `selectTrack`, `trackArtistAlbum`,
-`addFavorite`, and `removeFavorite`; Shared SHALL provide the first ten, and Library SHALL own the
+`albumArt`, `albumArtwork`, `nowPlayingBadge`, `selectTrack`, `trackArtistAlbum`,
+`addFavorite`, and `removeFavorite`; Shared SHALL provide the first nine, and Library SHALL own the
 default `addFavorite`/`removeFavorite` formatters. The removed `playlists`, `playlistsAccessibility`,
 and `libraryQueue` members, other removed playlist-only labels, and the old Home `title`, `subtitle`,
 and `onShowPlaylists` parameters SHALL NOT remain as compatibility aliases.
@@ -460,7 +461,7 @@ sole-path controls and exact header absence/retention controls SHALL apply.
   scanner/access/TagLib singleton, changes the artwork-loading contract, or uses an alternative
   holder/export path
 - **THEN** public-surface, production-composable, Koin, Gradle, and ABI controls fail
-- **AND** only the current Studio declarations, the twelve-member injected-label ledger, singleton
+- **AND** only the current Studio declarations, the current injected-label ledger, singleton
   graph, holder path/order, and intentional metadata-retirement symbols are accepted
 
 ### Requirement: Library detail formatting and exposed dependency graph are exact

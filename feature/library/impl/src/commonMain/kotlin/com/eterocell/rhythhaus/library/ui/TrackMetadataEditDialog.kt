@@ -1,10 +1,11 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -108,97 +109,105 @@ public fun TrackMetadataEditDialog(
     onSave: (TrackMetadataOverride) -> Unit,
 ) {
     val invalidNumberText = stringResource(Res.string.metadata_invalid_number)
-    HausDialog(
-        title = stringResource(Res.string.metadata_edit_title),
-        onDismiss = onDismiss,
-        body = {
-            if (data != null) {
-                MetadataField(
-                    stringResource(Res.string.metadata_title),
-                    data.scannedTrack.title,
-                    draft.title,
-                    saving,
-                    { onDraft(draft.copy(title = it)) },
-                    { onDraft(draft.copy(title = "")) },
-                    "metadata-title")
-                MetadataField(
-                    stringResource(Res.string.metadata_artist),
-                    data.scannedTrack.artist.orEmpty(),
-                    draft.artist,
-                    saving,
-                    { onDraft(draft.copy(artist = it)) },
-                    { onDraft(draft.copy(artist = "")) },
-                    "metadata-artist")
-                MetadataField(
-                    stringResource(Res.string.metadata_album),
-                    data.scannedTrack.album.orEmpty(),
-                    draft.album,
-                    saving,
-                    { onDraft(draft.copy(album = it)) },
-                    { onDraft(draft.copy(album = "")) },
-                    "metadata-album")
-                MetadataField(
-                    stringResource(Res.string.metadata_track_number),
-                    data.scannedTrack.trackNumber?.toString().orEmpty(),
-                    draft.trackNumber,
-                    saving,
-                    { onDraft(draft.copy(trackNumber = it)) },
-                    { onDraft(draft.copy(trackNumber = "")) },
-                    "metadata-track-number")
-                MetadataField(
-                    stringResource(Res.string.metadata_disc_number),
-                    data.scannedTrack.discNumber?.toString().orEmpty(),
-                    draft.discNumber,
-                    saving,
-                    { onDraft(draft.copy(discNumber = it)) },
-                    { onDraft(draft.copy(discNumber = "")) },
-                    "metadata-disc-number")
-                Button(
-                    onClick = { onDraft(TrackMetadataDraft()) },
-                    enabled = !saving && draft != TrackMetadataDraft(),
-                    modifier = Modifier.testTag("metadata-restore-all"),
-                ) {
-                    Text(stringResource(Res.string.metadata_restore_all))
-                }
-            }
-            if (data != null && draft.toOverrideOrNull() == null)
-                Text(
-                    invalidNumberText,
-                    color = HausColors.current.error,
-                    modifier =
-                        Modifier.semantics {
-                            error(invalidNumberText)
-                        },
-                )
-            if (failed)
-                Text(
-                    stringResource(Res.string.metadata_failure),
-                    color = HausColors.current.error)
-        },
-        actions = {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        HausDialog(
+            title = stringResource(Res.string.metadata_edit_title),
+            onDismiss = onDismiss,
+            maxPanelHeight = (maxHeight - 32.dp).coerceAtLeast(240.dp),
+            body = {
+                if (data != null) {
+                    MetadataField(
+                        stringResource(Res.string.metadata_title),
+                        data.scannedTrack.title,
+                        draft.title,
+                        saving,
+                        { onDraft(draft.copy(title = it)) },
+                        { onDraft(draft.copy(title = "")) },
+                        "metadata-title")
+                    MetadataField(
+                        stringResource(Res.string.metadata_artist),
+                        data.scannedTrack.artist.orEmpty(),
+                        draft.artist,
+                        saving,
+                        { onDraft(draft.copy(artist = it)) },
+                        { onDraft(draft.copy(artist = "")) },
+                        "metadata-artist")
+                    MetadataField(
+                        stringResource(Res.string.metadata_album),
+                        data.scannedTrack.album.orEmpty(),
+                        draft.album,
+                        saving,
+                        { onDraft(draft.copy(album = it)) },
+                        { onDraft(draft.copy(album = "")) },
+                        "metadata-album")
+                    MetadataField(
+                        stringResource(Res.string.metadata_track_number),
+                        data.scannedTrack.trackNumber?.toString().orEmpty(),
+                        draft.trackNumber,
+                        saving,
+                        { onDraft(draft.copy(trackNumber = it)) },
+                        { onDraft(draft.copy(trackNumber = "")) },
+                        "metadata-track-number")
+                    MetadataField(
+                        stringResource(Res.string.metadata_disc_number),
+                        data.scannedTrack.discNumber?.toString().orEmpty(),
+                        draft.discNumber,
+                        saving,
+                        { onDraft(draft.copy(discNumber = it)) },
+                        { onDraft(draft.copy(discNumber = "")) },
+                        "metadata-disc-number")
                     Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(44.dp)) {
-                            Text(stringResource(Res.string.metadata_cancel))
-                        }
-                    if (data != null)
-                        Button(
-                            onClick = { draft.toOverrideOrNull()?.let(onSave) },
-                            enabled =
-                                !saving && draft.toOverrideOrNull() != null,
-                            modifier =
-                                Modifier.weight(1f)
-                                    .height(44.dp)
-                                    .testTag("metadata-save"),
-                        ) {
-                            Text(stringResource(Res.string.metadata_save))
-                        }
+                        onClick = { onDraft(TrackMetadataDraft()) },
+                        enabled = !saving && draft != TrackMetadataDraft(),
+                        modifier =
+                            Modifier.heightIn(min = 48.dp)
+                                .testTag("metadata-restore-all"),
+                    ) {
+                        Text(stringResource(Res.string.metadata_restore_all))
+                    }
                 }
-        },
-    )
+                if (data != null && draft.toOverrideOrNull() == null)
+                    Text(
+                        invalidNumberText,
+                        color = HausColors.current.error,
+                        modifier =
+                            Modifier.semantics {
+                                error(invalidNumberText)
+                            },
+                    )
+                if (failed)
+                    Text(
+                        stringResource(Res.string.metadata_failure),
+                        color = HausColors.current.error)
+            },
+            actions = {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onDismiss,
+                            modifier =
+                                Modifier.weight(1f).heightIn(min = 48.dp)) {
+                                Text(stringResource(Res.string.metadata_cancel))
+                            }
+                        if (data != null)
+                            Button(
+                                onClick = {
+                                    draft.toOverrideOrNull()?.let(onSave)
+                                },
+                                enabled =
+                                    !saving && draft.toOverrideOrNull() != null,
+                                modifier =
+                                    Modifier.weight(1f)
+                                        .heightIn(min = 48.dp)
+                                        .testTag("metadata-save"),
+                            ) {
+                                Text(stringResource(Res.string.metadata_save))
+                            }
+                    }
+            },
+        )
+    }
 }
 
 @Composable
@@ -237,7 +246,7 @@ private fun MetadataField(
                         onClick = onRestore,
                         enabled = !saving && value.isNotEmpty(),
                         modifier =
-                            Modifier.height(44.dp).semantics {
+                            Modifier.heightIn(min = 48.dp).semantics {
                                 contentDescription = restoreDescription
                             }) {
                             Text(

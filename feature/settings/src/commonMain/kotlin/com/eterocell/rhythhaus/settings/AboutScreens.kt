@@ -6,19 +6,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -66,6 +67,7 @@ import rhythhaus.feature.settings.generated.resources.about_view_source
 import rhythhaus.feature.settings.generated.resources.open_source_libraries_error
 import rhythhaus.feature.settings.generated.resources.open_source_libraries_loading
 import rhythhaus.feature.settings.generated.resources.open_source_libraries_retry
+import rhythhaus.feature.settings.generated.resources.rhythhaus_app_icon
 import rhythhaus.feature.settings.generated.resources.rhythhaus_logo
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -78,6 +80,7 @@ internal const val AboutRetryTestTag = "about-libraries-retry"
 internal const val AboutSourceTestTag = "about-source"
 internal const val AboutLibrariesTestTag = "about-libraries"
 internal const val AboutLoadedTestTag = "about-libraries-loaded"
+internal const val AboutLibrariesListTestTag = "about-libraries-list"
 
 internal data class AboutLayoutPolicy(
     val maxContentWidth: androidx.compose.ui.unit.Dp,
@@ -160,12 +163,15 @@ internal typealias AboutLibrariesLoadComparisonObserver =
  */
 @Composable
 public fun SettingsAboutScreen(
-    onOpenLibraries: () -> Unit,
+    onOpenLibraries: (String) -> Unit,
     onDismiss: () -> Unit,
+    showRouteHeader: Boolean = true,
+    topContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val policy = CompactSettingsLayoutPolicy
     val uriHandler = LocalUriHandler.current
+    val librariesTitle = stringResource(Res.string.about_open_source_libraries)
     Surface(modifier.fillMaxSize(), color = HausColors.current.background) {
         Scaffold(
             Modifier.fillMaxSize(),
@@ -173,13 +179,13 @@ public fun SettingsAboutScreen(
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(
-                                WindowInsetsSides.Horizontal +
-                                    WindowInsetsSides.Top))
                         .padding(
-                            horizontal = policy.horizontalPagePadding,
-                            vertical = policy.verticalPagePadding),
+                            start = policy.horizontalPagePadding,
+                            end = policy.horizontalPagePadding,
+                            top =
+                                topContentPadding + policy.verticalPagePadding,
+                            bottom = policy.verticalPagePadding,
+                        ),
                     contentAlignment = Alignment.TopCenter) {
                         LazyColumn(
                             Modifier.fillMaxHeight()
@@ -192,14 +198,17 @@ public fun SettingsAboutScreen(
                                     bottom = policy.bottomContentPadding),
                             verticalArrangement =
                                 Arrangement.spacedBy(policy.itemSpacing)) {
-                                item {
-                                    RhythHausTopAppBar(
-                                        stringResource(Res.string.about),
-                                        onDismiss,
-                                        titlePadding =
-                                            policy.topBarTitlePadding,
-                                        navigationIconPadding =
-                                            policy.topBarNavigationIconPadding)
+                                if (showRouteHeader) {
+                                    item {
+                                        RhythHausTopAppBar(
+                                            stringResource(Res.string.about),
+                                            onDismiss,
+                                            titlePadding =
+                                                policy.topBarTitlePadding,
+                                            navigationIconPadding =
+                                                policy
+                                                    .topBarNavigationIconPadding)
+                                    }
                                 }
                                 item { AboutIdentityBlock() }
                                 item {
@@ -242,7 +251,9 @@ public fun SettingsAboutScreen(
                                 }
                                 item {
                                     Button(
-                                        onClick = onOpenLibraries,
+                                        onClick = {
+                                            onOpenLibraries(librariesTitle)
+                                        },
                                         modifier =
                                             Modifier.fillMaxWidth()
                                                 .heightIn(min = 48.dp)
@@ -288,19 +299,27 @@ private fun AboutIdentityBlock() {
         Modifier.fillMaxWidth().padding(vertical = HausSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(HausSpacing.sm)) {
-            Box(
-                Modifier.size(88.dp)
-                    .background(
-                        HausColors.current.surface,
-                        androidx.compose.foundation.shape.RoundedCornerShape(
-                            HausShapes.overlay)),
-                contentAlignment = Alignment.Center) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(HausSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val imageSize = AboutScreenLayoutPolicy.logoImageSize
+                val shape = RoundedCornerShape(HausShapes.overlay)
+                Box(
+                    Modifier.size(88.dp)
+                        .background(HausColors.current.surface, shape),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Image(
                         painterResource(Res.drawable.rhythhaus_logo),
                         stringResource(Res.string.about_logo_description),
-                        Modifier.size(AboutScreenLayoutPolicy.logoImageSize)
-                            .testTag("about-logo"))
+                        Modifier.size(imageSize).testTag("about-logo"))
                 }
+                RhythHausAppIcon(
+                    Modifier.size(imageSize)
+                        .clip(shape)
+                        .testTag("about-app-icon"))
+            }
             Text(
                 stringResource(Res.string.about_app_name),
                 color = HausColors.current.textPrimary,
@@ -314,6 +333,15 @@ private fun AboutIdentityBlock() {
         }
 }
 
+@Composable
+internal fun RhythHausAppIcon(modifier: Modifier) {
+    Image(
+        painter = painterResource(Res.drawable.rhythhaus_app_icon),
+        contentDescription = null,
+        modifier = modifier,
+    )
+}
+
 /**
  * Reads and renders caller-supplied app-wide attribution JSON, retaining
  * retryable failures and preserving exact injected read/parse callback
@@ -325,11 +353,15 @@ private fun AboutIdentityBlock() {
 public fun OpenSourceLibrariesScreen(
     readCatalogJson: suspend () -> String,
     onDismiss: () -> Unit,
+    showRouteHeader: Boolean = true,
+    topContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     OpenSourceLibrariesContent(
         readCatalogJson = readCatalogJson,
         onDismiss = onDismiss,
+        showRouteHeader = showRouteHeader,
+        topContentPadding = topContentPadding,
         modifier = modifier,
     )
 }
@@ -342,7 +374,10 @@ public fun OpenSourceLibrariesScreen(
 internal fun OpenSourceLibrariesContent(
     readCatalogJson: suspend () -> String,
     onDismiss: () -> Unit,
+    showRouteHeader: Boolean = true,
+    topContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier,
+    libraryListState: LazyListState? = null,
     loadLibraries: AboutLibrariesLoader? = null,
     onLoadCompared: AboutLibrariesLoadComparisonObserver = { _, _ -> },
 ) {
@@ -353,6 +388,9 @@ internal fun OpenSourceLibrariesContent(
     }
     val activeLoader = loadLibraries ?: defaultLoader
     val currentComparisonObserver by rememberUpdatedState(onLoadCompared)
+    val librariesListState = libraryListState ?: rememberLazyListState()
+    val librariesTopContentPadding =
+        if (showRouteHeader) policy.itemSpacing else 0.dp
     var retryGeneration by remember { mutableIntStateOf(0) }
     var retryState by remember {
         mutableStateOf<AboutLibrariesLoadState?>(null)
@@ -380,27 +418,28 @@ internal fun OpenSourceLibrariesContent(
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(
-                                WindowInsetsSides.Horizontal +
-                                    WindowInsetsSides.Top))
                         .padding(
                             horizontal = policy.horizontalPagePadding,
                             vertical = policy.verticalPagePadding),
                     contentAlignment = Alignment.TopCenter) {
                         Column(
                             Modifier.fillMaxHeight()
+                                .padding(top = topContentPadding)
                                 .widthIn(
                                     max =
                                         AboutScreenLayoutPolicy.maxContentWidth)
                                 .fillMaxWidth()) {
-                                RhythHausTopAppBar(
-                                    stringResource(
-                                        Res.string.about_open_source_libraries),
-                                    onDismiss,
-                                    titlePadding = policy.topBarTitlePadding,
-                                    navigationIconPadding =
-                                        policy.topBarNavigationIconPadding)
+                                if (showRouteHeader) {
+                                    RhythHausTopAppBar(
+                                        stringResource(
+                                            Res.string
+                                                .about_open_source_libraries),
+                                        onDismiss,
+                                        titlePadding =
+                                            policy.topBarTitlePadding,
+                                        navigationIconPadding =
+                                            policy.topBarNavigationIconPadding)
+                                }
                                 Box(Modifier.fillMaxSize().weight(1f)) {
                                     when (val current = visibleState) {
                                         AboutLibrariesLoadState.Loading ->
@@ -483,14 +522,17 @@ internal fun OpenSourceLibrariesContent(
                                                     LibrariesContainer(
                                                         libraries =
                                                             current.libraries,
+                                                        lazyListState =
+                                                            librariesListState,
                                                         modifier =
                                                             Modifier
-                                                                .fillMaxSize(),
+                                                                .fillMaxSize()
+                                                                .testTag(
+                                                                    AboutLibrariesListTestTag),
                                                         contentPadding =
                                                             PaddingValues(
                                                                 top =
-                                                                    policy
-                                                                        .itemSpacing,
+                                                                    librariesTopContentPadding,
                                                                 bottom =
                                                                     policy
                                                                         .bottomContentPadding),

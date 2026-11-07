@@ -301,7 +301,6 @@ public fun SmartPlaylistDetailScreen(
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
     mutationFailedLabel: String,
-    onBack: () -> Unit,
     onRetry: () -> Unit,
     onUpdate:
         (String, SmartPlaylistRule, (PlaylistStateAction) -> Unit) -> Unit,
@@ -333,8 +332,6 @@ public fun SmartPlaylistDetailScreen(
             }
         }
     PlaylistScreenFrame(
-        title = playlist.name,
-        onBack = onBack,
         beforeList = {
             Row(
                 Modifier.fillMaxWidth(),

@@ -119,13 +119,10 @@ has declaration KDoc describing the behavior below.
  * Shared-owned wording consumed by [SearchContent]. Value equality makes unchanged
  * labels stable across recomposition; callers provide already-localized text.
  *
- * @property title Search route title.
  * @property clear Label for the query-clear action.
  * @property nowPlaying Accessibility state for the current result.
  */
 public data class SearchSharedLabels(
-    /** Search route title resolved by Shared. */
-    public val title: String,
     /** Query-clear action label resolved by Shared. */
     public val clear: String,
     /** Current-result accessibility state resolved by Shared. */
@@ -140,7 +137,7 @@ public data class SearchSharedLabels(
  * @param libraryTracks Tracks searched in their supplied order.
  * @param currentTrackId Current playback track ID, or null when no track is current.
  * @param isPlaying Whether the current track is actively playing.
- * @param labels Shared-owned localized Search title, clear, and Now Playing labels.
+ * @param labels Shared-owned localized clear and Now Playing labels.
  * @param selectTrackLabel Composably resolves the localized long-press/content description for a
  * title using Shared's structured `stringResource(select_track_format, title)` when Search
  * composes a row; no generated resource handle crosses the boundary.
@@ -151,7 +148,7 @@ public data class SearchSharedLabels(
  * @param onVisibleTrackIdsChanged Receives filtered IDs whenever their sequence changes.
  * @param onScrollPositionChanged Receives first visible item index and pixel offset.
  * @param onPlayTrack Requests playback of ordered filtered results at the selected result.
- * @param onDismiss Requests Shared route dismissal.
+ * @param onDismiss Requests Shared completion after a result starts playback.
  * @param playingIndicator Composes Shared-owned current-playing indication in a playing row.
  * @param bottomContentPadding Reserved trailing list space for Shared shell chrome.
  * @param modifier Modifier applied to the Search root.
@@ -219,8 +216,10 @@ layout customization values.
 8. Search highlights the current row and supplies current-playing semantics from
    `labels.nowPlaying`. It invokes `playingIndicator` only for a current, playing
    row, allowing Shared to retain `EqualizerStrip`; Search never renders artwork.
-9. Back and the top-app-bar dismissal use `onDismiss`; Search does not register a
-   Back surface or decide route arbitration.
+9. Shared supplies the Search route title and Back action in the common route
+   header. Search does not render a duplicate Back surface or decide route
+   arbitration. The `onDismiss` callback remains available for Shared's
+   post-playback completion policy.
 
 ## Resources
 
@@ -235,8 +234,9 @@ and Chinese resource files:
 
 The feature owns rendering those five values through its own generated resource
 namespace. Shared retains `search`, `clear`, `now_playing_badge`, and
-`select_track_format`; it injects title, clear, Now Playing text, and the
-composable title-to-selection-label formatter. No resource key is duplicated and no generated
+`select_track_format`; it injects clear and Now Playing text plus the composable
+title-to-selection-label formatter. The route title comes from the Shared header.
+No resource key is duplicated and no generated
 resource handle crosses the module boundary.
 
 ## Test Plan

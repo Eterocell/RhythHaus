@@ -13,6 +13,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -72,6 +73,10 @@ class LibraryBrowseControlsJvmTest {
             }
         }
         waitForIdle()
+        onNodeWithTag("browse-controls-sort").assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-controls-direction").assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-controls-filters").assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-controls-source").assertHeightIsAtLeast(48.dp)
         onNodeWithTag("browse-controls-sort").performClick()
         waitForIdle()
 
@@ -218,6 +223,8 @@ class LibraryBrowseControlsJvmTest {
         waitForIdle()
         onNodeWithTag("browse-controls-filters").performClick()
         waitForIdle()
+        onNodeWithTag("browse-filter-favorite").assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-artwork").assertHeightIsAtLeast(48.dp)
 
         val favoriteOff =
             hasText("Favorites only", substring = false) and
@@ -251,6 +258,12 @@ class LibraryBrowseControlsJvmTest {
                     ),
             )
             .assertIsDisplayed()
+
+        onNodeWithTag("browse-filter-remove-favorite")
+            .assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-remove-artwork")
+            .assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-clear-all").assertHeightIsAtLeast(48.dp)
         onNode(
                 hasText("Artwork only", substring = false) and
                     SemanticsMatcher.expectValue(
@@ -265,6 +278,58 @@ class LibraryBrowseControlsJvmTest {
         waitForIdle()
         assertEquals(listOf(true, false), favoriteChanges)
         assertEquals(listOf(true, false), artworkChanges)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun activeFilterRemovalAndClearAllMeetTouchTargets() = runComposeUiTest {
+        var query by
+            mutableStateOf(
+                LibraryBrowseQuery(
+                    favoriteOnly = true,
+                    artworkOnly = true,
+                    sourceId = "source-a",
+                ),
+            )
+        setContent {
+            Box(Modifier.size(1_200.dp, 800.dp)) {
+                LibraryBrowseControls(
+                    query = query,
+                    browseMode = BrowseMode.Songs,
+                    sourceOptions =
+                        listOf(
+                            LibraryBrowseSourceOption(
+                                id = "source-a",
+                                displayName = "Library A",
+                            ),
+                        ),
+                    onSortChange = {},
+                    onSortDirectionChange = {},
+                    onFavoriteOnlyChange = {
+                        query = query.copy(favoriteOnly = it)
+                    },
+                    onArtworkOnlyChange = {
+                        query = query.copy(artworkOnly = it)
+                    },
+                    onSourceIdChange = {
+                        query = query.copy(sourceId = it)
+                    },
+                )
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag("browse-filter-remove-favorite")
+            .assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-remove-artwork")
+            .assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-remove-source")
+            .assertHeightIsAtLeast(48.dp)
+        onNodeWithTag("browse-filter-clear-all")
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        waitForIdle()
+        assertEquals(LibraryBrowseQuery(), query)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -750,7 +815,6 @@ class LibraryBrowseControlsJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",

@@ -85,15 +85,20 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import com.eterocell.rhythhaus.library.TrackMetadataEditorData
 import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.library.TrackPlayHistory
+import com.eterocell.rhythhaus.onboarding.OnboardingBackTestTag
 import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
+import com.eterocell.rhythhaus.onboarding.OnboardingFinishTestTag
+import com.eterocell.rhythhaus.onboarding.OnboardingNextTestTag
 import com.eterocell.rhythhaus.onboarding.OnboardingRootTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentLauncher
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentOpenResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentSaveResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportConfirmation
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreview
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
@@ -117,6 +122,524 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 class LibraryAppShellJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun routeTransitionInsetsRemainStableThroughPushPopAndCancellation() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest(
+                effectContext = TestMotionDurationScale(scaleFactor = 1f),
+            ) {
+                val input = DirectNavigationEventInput()
+                TestNavigationOwner.navigationEventDispatcher.addInput(input)
+                try {
+                    mount(
+                        width = 390.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "transition-geometry",
+                                "source",
+                                ScanStatus.Completed,
+                                1),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                    )
+                    val content = onNodeWithTag(AppShellContentRegionTestTag)
+                    val settledBounds =
+                        content.fetchSemanticsNode().boundsInRoot
+                    val settingsAction = onNodeWithTag(AppSettingsTopBarTestTag)
+                    val settledSettingsBounds =
+                        settingsAction.fetchSemanticsNode().boundsInRoot
+                    onNodeWithTag("AppShellHeaderTitle")
+                        .assertTextContains("Library")
+                    mainClock.autoAdvance = false
+                    onNodeWithTag(AppNavigationSearchTestTag).performClick()
+                    repeat(16) {
+                        mainClock.advanceTimeByFrame()
+                        waitForIdle()
+                        assertEquals(
+                            settledBounds,
+                            content.fetchSemanticsNode().boundsInRoot,
+                            "Push frame $it changed the shell content rectangle")
+                        assertEquals(
+                            settledSettingsBounds,
+                            settingsAction.fetchSemanticsNode().boundsInRoot,
+                            "Push frame $it changed global Settings chrome")
+                    }
+                    onNode(hasSetTextAction())
+                        .performTextInput("Retained query")
+                    input.backStarted(NavigationEvent())
+                    mainClock.advanceTimeBy(64)
+                    waitForIdle()
+                    assertEquals(
+                        settledBounds,
+                        content.fetchSemanticsNode().boundsInRoot)
+                    assertEquals(
+                        settledSettingsBounds,
+                        settingsAction.fetchSemanticsNode().boundsInRoot)
+                    input.backCancelled()
+                    mainClock.advanceTimeBy(256)
+                    waitForIdle()
+                    onNodeWithText("Retained query").assertIsDisplayed()
+                    assertEquals(
+                        settledBounds,
+                        content.fetchSemanticsNode().boundsInRoot)
+                    assertEquals(
+                        settledSettingsBounds,
+                        settingsAction.fetchSemanticsNode().boundsInRoot)
+                    input.backStarted(NavigationEvent())
+                    input.backCompleted()
+                    repeat(16) {
+                        mainClock.advanceTimeByFrame()
+                        waitForIdle()
+                        assertEquals(
+                            settledBounds,
+                            content.fetchSemanticsNode().boundsInRoot,
+                            "Pop frame $it changed the shell content rectangle")
+                        assertEquals(
+                            settledSettingsBounds,
+                            settingsAction.fetchSemanticsNode().boundsInRoot,
+                            "Pop frame $it changed global Settings chrome")
+                    }
+                    onNodeWithTag("AppShellHeaderTitle")
+                        .assertTextContains("Library")
+                    onNodeWithTag(AppNavigationLibraryTestTag)
+                        .assertIsSelected()
+                } finally {
+                    TestNavigationOwner.navigationEventDispatcher.removeInput(
+                        input)
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun controlsDismissalStartsOnArtworkAndUnusedSurface() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        "controls-drag",
+                        "Controls drag",
+                        "Artist",
+                        "Album",
+                        180,
+                        TrackAccent(0xFF123456, 0xFF654321),
+                        AudioSource.FilePath("/controls-drag.mp3"),
+                        artworkBytes =
+                            java.util.Base64.getDecoder()
+                                .decode(
+                                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1kAAAAASUVORK5CYII="),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                try {
+                    runBlocking {
+                        controller.setOccurrenceQueue(
+                            listOf(
+                                QueueOccurrence(
+                                    "current", track.toPlayableTrack()),
+                                QueueOccurrence(
+                                    "duplicate", track.toPlayableTrack()),
+                            ),
+                            "current",
+                        )
+                    }
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Paused
+                    }
+                    mount(
+                        width = 390.dp,
+                        height = 768.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "controls-drag-scan",
+                                "source",
+                                ScanStatus.Completed,
+                                1),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+                    onNodeWithTag(AppNavigationSearchTestTag).performClick()
+                    onNode(hasSetTextAction()).performTextInput("Controls")
+                    val before = controller.state.value
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+
+                    fun dismissFrom(start: Offset) {
+                        onNodeWithTag("NowPlayingContentRoot")
+                            .performTouchInput {
+                                swipe(
+                                    start,
+                                    Offset(start.x, height - 8f),
+                                    durationMillis = 600,
+                                )
+                            }
+                        waitForIdle()
+                        onNodeWithTag("NowPlayingContentRoot")
+                            .assertDoesNotExist()
+                        onNodeWithTag("NowPlayingShellPlacement")
+                            .assertIsDisplayed()
+                        onNodeWithTag(AppNavigationSearchTestTag)
+                            .assertIsSelected()
+                        onNodeWithText("Controls", substring = false)
+                            .assertIsDisplayed()
+                        assertEquals(
+                            before,
+                            controller.state.value,
+                            "Dismissing Controls must preserve the selected track, playback state, and duplicate queue occurrences",
+                        )
+                    }
+
+                    val playerBounds =
+                        onNodeWithTag("NowPlayingContentRoot")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    val artworkBounds =
+                        onNodeWithContentDescription("Album artwork")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    dismissFrom(
+                        artworkBounds.center - playerBounds.topLeft,
+                    )
+
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+                    val reopenedPlayerBounds =
+                        onNodeWithTag("NowPlayingContentRoot")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    dismissFrom(
+                        Offset(
+                            x = reopenedPlayerBounds.width / 2f,
+                            y = 8f,
+                        ),
+                    )
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+                    onNodeWithContentDescription("Close player").performClick()
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingContentRoot").assertDoesNotExist()
+                    onNodeWithTag(AppNavigationSearchTestTag).assertIsSelected()
+                    assertEquals(before, controller.state.value)
+                } finally {
+                    controller.release()
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun controlsDismissalPreservesTapSeekAndShortDrag() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "controls-input",
+                        title = "Controls input",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source = AudioSource.FilePath("/controls-input.mp3"),
+                        artworkBytes =
+                            java.util.Base64.getDecoder()
+                                .decode(
+                                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1kAAAAASUVORK5CYII="),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                val expectedQueue = listOf("controls-input")
+                try {
+                    runBlocking {
+                        controller.setOccurrenceQueue(
+                            listOf(
+                                QueueOccurrence(
+                                    "controls-input",
+                                    track.toPlayableTrack(),
+                                ),
+                            ),
+                            "controls-input",
+                        )
+                    }
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Paused
+                    }
+                    mount(
+                        width = 390.dp,
+                        height = 768.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "controls-input-scan",
+                                "source",
+                                ScanStatus.Completed,
+                                1,
+                            ),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+
+                    onNodeWithTag("NowPlayingPlayPause").performClick()
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Playing
+                    }
+                    val playingQueue =
+                        controller.state.value.queue.map { it.id }
+                    onNodeWithTag("NowPlayingProgress").performScrollTo()
+                    onNodeWithTag("NowPlayingProgress").performTouchInput {
+                        click(center)
+                    }
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.positionMillis > 0L
+                    }
+                    assertEquals(
+                        PlaybackStatus.Playing,
+                        controller.state.value.status,
+                    )
+                    assertEquals(expectedQueue, playingQueue)
+
+                    onNodeWithTag("NowPlayingCompactLayout").performTouchInput {
+                        swipe(
+                            Offset(4f, height - 96f),
+                            Offset(4f, 96f),
+                            durationMillis = 400,
+                        )
+                    }
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingCompactLayout")
+                        .performScrollToNode(
+                            hasContentDescription("Album artwork"))
+
+                    val playerBounds =
+                        onNodeWithTag("NowPlayingContentRoot")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    val artworkBounds =
+                        onNodeWithContentDescription("Album artwork")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                    onNodeWithContentDescription("Album artwork")
+                        .performTouchInput {
+                            val start =
+                                artworkBounds.center - playerBounds.topLeft
+                            swipe(
+                                start,
+                                start + Offset(0f, 100f),
+                                durationMillis = 600,
+                            )
+                        }
+                    waitForIdle()
+
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    assertEquals(
+                        "controls-input",
+                        controller.state.value.currentTrack?.id,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Playing,
+                        controller.state.value.status,
+                    )
+                    assertEquals(
+                        expectedQueue,
+                        controller.state.value.queue.map { it.id },
+                    )
+                } finally {
+                    controller.release()
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun controlsDismissalDoesNotStealNestedPlayerInput() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "nested-controls",
+                        title = "Nested controls",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source = AudioSource.FilePath("/nested-controls.mp3"),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                try {
+                    runBlocking {
+                        controller.setOccurrenceQueue(
+                            listOf(
+                                QueueOccurrence(
+                                    "nested-controls",
+                                    track.toPlayableTrack(),
+                                ),
+                            ),
+                            "nested-controls",
+                        )
+                    }
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Paused
+                    }
+                    mount(
+                        width = 390.dp,
+                        height = 480.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "nested-controls-scan",
+                                "source",
+                                ScanStatus.Completed,
+                                1,
+                            ),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+
+                    val player = onNodeWithTag("NowPlayingContentRoot")
+                    val title = onNodeWithTag("NowPlayingTitle")
+                    val titleTopBefore =
+                        title.fetchSemanticsNode().boundsInRoot.top
+                    player.performTouchInput {
+                        swipe(
+                            Offset(center.x, height - 24f),
+                            Offset(center.x, 24f),
+                            durationMillis = 600,
+                        )
+                    }
+                    waitForIdle()
+
+                    val titleTopAfter =
+                        onNodeWithTag("NowPlayingTitle")
+                            .fetchSemanticsNode()
+                            .boundsInRoot
+                            .top
+                    assertTrue(
+                        titleTopAfter < titleTopBefore,
+                        "An upward Controls drag must scroll content instead of being consumed by sheet dismissal",
+                    )
+                    onNodeWithTag("NowPlayingPlayPause").assertIsDisplayed()
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    assertEquals(
+                        "nested-controls",
+                        controller.state.value.currentTrack?.id,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Paused,
+                        controller.state.value.status,
+                    )
+                    assertEquals(
+                        listOf("nested-controls"),
+                        controller.state.value.queue.map { it.id },
+                    )
+                } finally {
+                    controller.release()
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun controlsDismissalDoesNotStartOnPlayControl() =
+        withDefaultLocale(Locale.ENGLISH) {
+            androidx.compose.ui.test.v2.runSkikoComposeUiTest(
+                size = androidx.compose.ui.geometry.Size(1280f, 1100f),
+            ) {
+                val track =
+                    Track(
+                        id = "protected-play-control",
+                        title = "Protected play control",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source =
+                            AudioSource.FilePath("/protected-play-control.mp3"),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                try {
+                    runBlocking {
+                        controller.setOccurrenceQueue(
+                            listOf(
+                                QueueOccurrence(
+                                    "protected-play-control",
+                                    track.toPlayableTrack(),
+                                ),
+                            ),
+                            "protected-play-control",
+                        )
+                    }
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Paused
+                    }
+                    mount(
+                        width = 1280.dp,
+                        height = 1100.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "protected-play-control-scan",
+                                "source",
+                                ScanStatus.Completed,
+                                1,
+                            ),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+                    onNodeWithTag("NowPlayingShellPlacement").performClick()
+                    waitForIdle()
+
+                    val player = onNodeWithTag("NowPlayingContentRoot")
+                    val playControl = onNodeWithTag("NowPlayingPlayPause")
+                    val playerBounds = player.fetchSemanticsNode().boundsInRoot
+                    val playBounds =
+                        playControl.fetchSemanticsNode().boundsInRoot
+                    val dragDistance =
+                        playerBounds.bottom - playBounds.center.y - 2f
+                    assertTrue(
+                        dragDistance > playerBounds.height * 0.3f,
+                        "The wide test surface must allow a full dismissal-length drag from the Play control: player=$playerBounds play=$playBounds distance=$dragDistance",
+                    )
+                    playControl.performTouchInput {
+                        swipe(
+                            center,
+                            center + Offset(0f, dragDistance),
+                            durationMillis = 600,
+                        )
+                    }
+                    waitForIdle()
+
+                    player.assertIsDisplayed()
+                    playControl.assertIsDisplayed()
+                    assertEquals(
+                        "protected-play-control",
+                        controller.state.value.currentTrack?.id,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Paused,
+                        controller.state.value.status,
+                    )
+                    assertEquals(
+                        listOf("protected-play-control"),
+                        controller.state.value.queue.map { it.id },
+                    )
+                } finally {
+                    controller.release()
+                }
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun activeShellDoesNotReenableAnExitingRouteFocusTarget() =
@@ -424,6 +947,7 @@ class LibraryAppShellJvmTest {
                     "route viewport must end before bottom navigation",
                 )
                 onNodeWithTag("AppNavigationSearch").performClick()
+                waitForIdle()
                 assertEquals(
                     settingsTop,
                     onNodeWithTag("AppSettingsTopBar")
@@ -433,21 +957,203 @@ class LibraryAppShellJvmTest {
                 )
                 onNodeWithTag("AppNavigationSearch").assertIsSelected()
                 onNodeWithTag("AppNavigationPlaylists").performClick()
-                assertEquals(
-                    settingsTop,
+                waitForIdle()
+                val settingsAfterLegacyRoute =
                     onNodeWithTag("AppSettingsTopBar")
                         .fetchSemanticsNode()
                         .boundsInRoot
-                        .top,
-                )
+                assertTrue(settingsAfterLegacyRoute.top >= 0f)
+                assertTrue(settingsAfterLegacyRoute.bottom < navigationTop)
                 onNodeWithTag("AppNavigationPlaylists").assertIsSelected()
                 onNodeWithTag("AppSettingsTopBar").performClick()
                 onNodeWithTag("settings-list").assertIsDisplayed()
                 onAllNodesWithTag("AppSettingsTopBar").assertCountEquals(0)
                 onAllNodesWithTag("AppNavigationSettings").assertCountEquals(0)
+                onNodeWithTag("AppNavigationBottom").assertDoesNotExist()
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                onNodeWithTag("AppNavigationPlaylists").assertIsSelected()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun toolRouteKeepsCorrectNavigationAndHeaderAcrossWidths() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var width by mutableStateOf(390.dp)
+                mount(
+                    width = { width },
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "tool-route-header",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+
+                onNodeWithTag("AppSettingsTopBar").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle")
+                    .assertTextContains("Settings")
+                onNodeWithTag("AppShellHeaderBack").assertIsDisplayed()
+                onAllNodesWithTag("AppNavigationBottom").assertCountEquals(0)
+                onNodeWithTag("settings-list")
+                    .performScrollToNode(hasTestTag("settings-about"))
+                waitForIdle()
+                onNodeWithTag("settings-about").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle").assertTextContains("About")
+                onNodeWithTag("AppShellHeaderBack").assertIsDisplayed()
+                onNodeWithTag("about-libraries", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle")
+                    .assertTextContains("Open Source Libraries")
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle").assertTextContains("About")
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle")
+                    .assertTextContains("Settings")
+
+                onNodeWithTag("settings-list")
+                    .performScrollToNode(hasTestTag("settings-about"))
+                onNodeWithTag("settings-about").performClick()
+                waitForIdle()
+                width = 1200.dp
+                waitForIdle()
+                onNodeWithTag("AppNavigationSidebar").assertIsDisplayed()
                 onNodeWithTag("AppNavigationLibrary").assertIsNotSelected()
                 onNodeWithTag("AppNavigationSearch").assertIsNotSelected()
                 onNodeWithTag("AppNavigationPlaylists").assertIsNotSelected()
+                onNodeWithTag("AppShellHeaderTitle").assertTextContains("About")
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle")
+                    .assertTextContains("Settings")
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                onNodeWithTag("AppNavigationLibrary").assertIsSelected()
+                onNodeWithTag("AppNavigationSettings").performClick()
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderTitle")
+                    .assertTextContains("Settings")
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun onboardingUsesFullSafeContentAndExposesOnlyExistingActions() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                mount(
+                    width = { 390.dp },
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "onboarding-safe-content",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+                onNodeWithTag("AppSettingsTopBar").performClick()
+                onNodeWithTag("settings-list")
+                    .performScrollToNode(
+                        hasTestTag("settings-review-onboarding"),
+                    )
+                waitForIdle()
+                onNodeWithTag("settings-review-onboarding").performClick()
+                waitForIdle()
+                onNodeWithTag(OnboardingRootTestTag).assertIsDisplayed()
+                onNodeWithTag(OnboardingCloseTestTag)
+                    .performScrollTo()
+                    .assertIsDisplayed()
+                onNodeWithTag(OnboardingNextTestTag)
+                    .performScrollTo()
+                    .assertIsDisplayed()
+                onNodeWithTag(OnboardingBackTestTag).assertDoesNotExist()
+                onNodeWithTag(OnboardingFinishTestTag).assertDoesNotExist()
+                val root =
+                    onNodeWithTag(OnboardingRootTestTag)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                assertTrue(root.left >= 0f && root.top >= 0f)
+                assertTrue(root.right <= 390f && root.bottom <= 900f)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun desktopDropFeedbackDoesNotOccludeChrome() =
+        withDefaultLocale(Locale.ENGLISH) {
+            androidx.compose.ui.test.v2.runSkikoComposeUiTest(
+                size = androidx.compose.ui.geometry.Size(1280f, 800f),
+                density = androidx.compose.ui.unit.Density(1f, 2f),
+            ) {
+                var active by mutableStateOf(false)
+                var feedback by mutableStateOf<String?>(null)
+                mount(
+                    width = 1200.dp,
+                    height = 800.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "drop-feedback-layout",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    desktopDropTarget = {
+                        DesktopDropTargetPresentation(
+                            isAvailable = true,
+                            isActive = active,
+                            feedback = feedback,
+                        )
+                    },
+                )
+
+                onNodeWithText("Drop music files here.", useUnmergedTree = true)
+                    .assertIsDisplayed()
+                onNodeWithContentDescription("Choose music folder")
+                    .assertIsDisplayed()
+                onNodeWithTag("AppNavigationSidebar").assertIsDisplayed()
+
+                runOnIdle { active = true }
+                waitForIdle()
+                onNodeWithText(
+                        "Release to add folders or audio files.",
+                        useUnmergedTree = true,
+                    )
+                    .assertIsDisplayed()
+                onNodeWithContentDescription("Choose music folder")
+                    .assertIsDisplayed()
+                onNodeWithTag("AppNavigationSidebar").assertIsDisplayed()
+
+                runOnIdle {
+                    active = false
+                    feedback = "Added 1 folder"
+                }
+                waitForIdle()
+                onNodeWithText("Added 1 folder", useUnmergedTree = true)
+                    .assertIsDisplayed()
+                onNodeWithTag("AppNavigationSidebar").assertIsDisplayed()
+
+                runOnIdle { feedback = "Unsupported item" }
+                waitForIdle()
+                onNodeWithText("Unsupported item", useUnmergedTree = true)
+                    .assertIsDisplayed()
+                onNodeWithTag("AppNavigationSidebar").assertIsDisplayed()
             }
         }
 
@@ -548,6 +1254,9 @@ class LibraryAppShellJvmTest {
 
                 onNodeWithTag(AppNavigationSearchTestTag).performClick()
                 waitForIdle()
+                onNodeWithTag("AppShellHeaderRoot").assertIsDisplayed()
+                onNodeWithTag("AppShellHeaderTitle").assertIsDisplayed()
+                onAllNodes(hasContentDescription("Back")).assertCountEquals(1)
                 onNode(hasSetTextAction()).assertIsFocused()
             }
         }
@@ -791,11 +1500,51 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun playlistBackupHostFollowsTheActiveProductionDestination() =
+    fun previewCancelStaleConfirmationAndReadFailurePreserveLibrarySnapshot() =
         withDefaultLocale(Locale.ENGLISH) {
-            runComposeUiTest {
+            androidx.compose.ui.test.v2.runSkikoComposeUiTest(
+                size = androidx.compose.ui.geometry.Size(1280f, 800f),
+                density = androidx.compose.ui.unit.Density(1f, 2f),
+            ) {
                 val backupState = mutableStateOf(PlaylistBackupUiState())
                 var openRequests = 0
+                var width by mutableStateOf(390.dp)
+                val backupTrack =
+                    LibraryTrack(
+                        id = "backup-track",
+                        sourceId = "source",
+                        sourceLocalKey = "backup-track.mp3",
+                        audioSource = AudioSource.FilePath("backup-track.mp3"),
+                        displayName = "backup-track.mp3",
+                        title = "Backup song",
+                        artist = "Backup artist",
+                        album = "Backup album",
+                        durationMillis = 60_000,
+                        sizeBytes = 1,
+                        modifiedAtEpochMillis = 1,
+                        lastSeenScanId = "scan",
+                        createdAtEpochMillis = 1,
+                        updatedAtEpochMillis = 1,
+                    )
+                val librarySnapshot =
+                    PlaylistSnapshot(
+                        playlists =
+                            listOf(
+                                PlaylistSummary("existing", "Existing", 1, 1)),
+                        entriesByPlaylistId =
+                            mapOf(
+                                "existing" to
+                                    listOf(
+                                        PlaylistEntry(
+                                            "backup-entry",
+                                            "existing",
+                                            backupTrack.id,
+                                            0,
+                                            60_000,
+                                        ),
+                                    ),
+                            ),
+                    )
                 var document = byteArrayOf()
                 val launcher =
                     object : PlaylistBackupDocumentLauncher {
@@ -809,9 +1558,16 @@ class LibraryAppShellJvmTest {
                             suggestedFileName: String,
                             bytes: ByteArray
                         ) {
-                            document = bytes
+                            document = bytes.copyOf()
                         }
                     }
+                var guardedRevisionChecks = 0
+                val liveState =
+                    PlaylistState(
+                        confirmedSnapshot = librarySnapshot,
+                        hasConfirmedSnapshot = true,
+                    )
+                var confirmation: PlaylistBackupImportConfirmation? = null
                 val controller =
                     createPlaylistBackupController(
                         PlaylistStateOwner(
@@ -822,14 +1578,19 @@ class LibraryAppShellJvmTest {
                             override suspend fun <T> withCurrentRevision(
                                 expectedRevision: Long,
                                 block: suspend () -> T,
-                            ): PlaylistBackupRevisionGuardResult<T> =
-                                PlaylistBackupRevisionGuardResult.Current(
-                                    block())
+                            ): PlaylistBackupRevisionGuardResult<T> {
+                                guardedRevisionChecks++
+                                return PlaylistBackupRevisionGuardResult.Stale
+                            }
                         },
                     )
                 val saving = runBlocking {
                     controller.beginExport(
-                        backupState.value, PlaylistSnapshot(), emptyList(), 1)
+                        backupState.value,
+                        librarySnapshot,
+                        listOf(backupTrack),
+                        1,
+                    )
                 }
                 backupState.value =
                     controller.receiveSave(
@@ -839,14 +1600,14 @@ class LibraryAppShellJvmTest {
                         controller.receiveOpen(
                             backupState.value,
                             result,
-                            emptyList(),
-                            emptyList(),
+                            listOf(backupTrack),
+                            listOf("Existing"),
                             "Imported",
-                            1)
+                            1L)
                     }
                 }
                 mount(
-                    width = 390.dp,
+                    width = { width },
                     source = source(),
                     scanSession =
                         ScanSession(
@@ -857,11 +1618,8 @@ class LibraryAppShellJvmTest {
                         ),
                     picker = CountingPicker(),
                     callbacks = CallbackRecorder(),
-                    playlistState =
-                        PlaylistState(
-                            confirmedSnapshot = PlaylistSnapshot(),
-                            hasConfirmedSnapshot = true,
-                        ),
+                    libraryTracks = listOf(backupTrack),
+                    playlistStateProvider = { liveState },
                     playlistBackupState = { backupState.value },
                     backupDocumentAvailable = true,
                     onOpenPlaylistBackup = {
@@ -872,9 +1630,19 @@ class LibraryAppShellJvmTest {
                         backupState.value =
                             controller.reduce(backupState.value, action)
                     },
+                    onConfirmPlaylistBackup = {
+                        confirmation = runBlocking {
+                            controller.confirm(
+                                backupState.value,
+                                librarySnapshot,
+                            )
+                        }
+                        backupState.value = requireNotNull(confirmation).state
+                    },
                 )
 
                 onNodeWithTag("AppNavigationPlaylists").performClick()
+                onNodeWithTag("AppSettingsTopBar").assertIsDisplayed()
                 onNodeWithTag("playlist-backup-json-import")
                     .performScrollTo()
                     .performClick()
@@ -884,6 +1652,7 @@ class LibraryAppShellJvmTest {
                 }
                 assertEquals(
                     PlaylistBackupOperation.Idle, backupState.value.operation)
+                assertEquals(librarySnapshot, liveState.confirmedSnapshot)
                 onAllNodesWithTag("playlist-backup-preview-confirm")
                     .assertCountEquals(0)
                 onNodeWithTag("playlist-backup-json-import").performClick()
@@ -895,12 +1664,31 @@ class LibraryAppShellJvmTest {
                 onAllNodesWithTag("playlist-backup-preview-confirm")
                     .assertCountEquals(1)
 
+                width = 1200.dp
+                onNodeWithTag("playlist-backup-preview-confirm")
+                    .assertIsDisplayed()
+                onNodeWithTag("playlist-backup-preview-confirm").performClick()
+                waitForIdle()
+                assertEquals(1, guardedRevisionChecks)
+                assertEquals(
+                    liveState.confirmedSnapshot,
+                    confirmation?.confirmedSnapshot,
+                )
+                assertEquals(librarySnapshot, liveState.confirmedSnapshot)
+                assertEquals(
+                    PlaylistBackupUiError.StalePreview,
+                    backupState.value.error,
+                )
+                onNodeWithTag("playlist-backup-preview-confirm")
+                    .assertIsNotEnabled()
+                onNodeWithTag("playlist-backup-preview-error")
+                    .assertIsDisplayed()
                 onNodeWithTag("playlist-backup-preview-dismiss").performClick()
                 waitForIdle()
                 onAllNodesWithTag("playlist-backup-preview-confirm")
                     .assertCountEquals(0)
 
-                onNodeWithTag("AppSettingsTopBar").performClick()
+                onNodeWithTag("AppNavigationSettings").performClick()
                 waitForIdle()
                 onNodeWithTag("settings-list")
                     .performScrollToNode(
@@ -918,6 +1706,7 @@ class LibraryAppShellJvmTest {
                 }
                 assertEquals(
                     PlaylistBackupUiError.ReadFailed, backupState.value.error)
+                assertEquals(librarySnapshot, liveState.confirmedSnapshot)
                 onAllNodesWithTag("playlist-backup-preview-confirm")
                     .assertCountEquals(0)
                 onNodeWithTag("playlist-backup-json-import").performClick()
@@ -1419,6 +2208,103 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun playlistRoutesUseSharedHeaderWithoutDuplicateFeatureBack() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var width by mutableStateOf(600.dp)
+                val playlist = PlaylistSummary("static-route", "Road Mix", 1, 1)
+                val smart =
+                    SmartPlaylistSummary(
+                        "smart-route",
+                        "Favorite Songs",
+                        com.eterocell.rhythhaus.library.SmartPlaylistRule
+                            .Favorites,
+                        1,
+                        1,
+                    )
+                val state =
+                    PlaylistState(
+                        confirmedSnapshot =
+                            PlaylistSnapshot(
+                                playlists = listOf(playlist),
+                                entriesByPlaylistId =
+                                    mapOf(
+                                        playlist.id to
+                                            listOf(
+                                                PlaylistEntry(
+                                                    "route-entry",
+                                                    playlist.id,
+                                                    "route-track",
+                                                    0,
+                                                    1,
+                                                ),
+                                            ),
+                                    ),
+                                smartPlaylists = listOf(smart),
+                            ),
+                        hasConfirmedSnapshot = true,
+                    )
+                mount(
+                    width = { width },
+                    height = 800.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "playlist-header-routes",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = emptyList(),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    playlistState = state,
+                )
+
+                onNodeWithTag("AppNavigationPlaylists").performClick()
+                waitForIdle()
+                assertSharedPlaylistHeader("Playlists")
+
+                onNode(hasContentDescription("Playlist Road Mix, 1 tracks"))
+                    .performClick()
+                waitForIdle()
+                assertSharedPlaylistHeader("Road Mix")
+
+                onNodeWithTag("AppShellHeaderBack").performClick()
+                waitForIdle()
+                assertSharedPlaylistHeader("Playlists")
+
+                onNode(hasContentDescription("Favorite Songs")).performClick()
+                waitForIdle()
+                assertSharedPlaylistHeader("Favorite Songs")
+
+                width = 1200.dp
+                waitForIdle()
+                onNodeWithTag("AppShellHeaderRoot").assertIsDisplayed()
+                onNodeWithText("Favorite Songs").assertIsDisplayed()
+                onNodeWithTag("AppNavigationSettings").assertIsDisplayed()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun androidx.compose.ui.test.ComposeUiTest
+        .assertSharedPlaylistHeader(
+        title: String,
+    ) {
+        onNodeWithTag("AppShellHeaderRoot").assertIsDisplayed()
+        onNodeWithTag("AppShellHeaderTitle").assertTextContains(title)
+        onNodeWithTag("playlist-back").assertDoesNotExist()
+        onNodeWithTag("playlist-toolbar-title").assertDoesNotExist()
+        if (title == "Playlists") {
+            onNodeWithTag("AppShellHeaderBack").assertDoesNotExist()
+            onNodeWithTag("AppSettingsTopBar").assertIsDisplayed()
+        } else {
+            onNodeWithTag("AppShellHeaderBack").assertIsDisplayed()
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun albumDestinationAndSelectionSurviveDesktopToRailReflow() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
@@ -1892,11 +2778,7 @@ class LibraryAppShellJvmTest {
                         .fetchSemanticsNode()
                         .boundsInRoot
                         .bottom
-                val navigationTop =
-                    onNodeWithTag("AppNavigationBottom")
-                        .fetchSemanticsNode()
-                        .boundsInRoot
-                        .top
+                onNodeWithTag("AppNavigationBottom").assertDoesNotExist()
                 appearance.value =
                     appearance.value.copy(
                         paletteId =
@@ -1905,13 +2787,13 @@ class LibraryAppShellJvmTest {
                 waitForIdle()
                 onNode(hasText("View scan report")).assertIsDisplayed()
                 assertTrue(
-                    settingsBottom <= navigationTop + 1f,
-                    "Settings viewport must end before bottom navigation",
+                    settingsBottom <= 400f,
+                    "Settings viewport must stay within the full tool viewport",
                 )
                 onNode(hasText("View scan report")).performClick()
                 onNodeWithTag("settings-root", useUnmergedTree = true)
                     .assertIsDisplayed()
-                onNodeWithTag("AppNavigationLibrary").assertIsNotSelected()
+                onNodeWithTag("AppNavigationLibrary").assertDoesNotExist()
                 onNodeWithTag("settings-list", useUnmergedTree = true)
                     .performScrollToNode(hasText("Review onboarding"))
                 val reviewAction = onNodeWithTag("settings-review-onboarding")
@@ -1970,7 +2852,7 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun expandedNowPlayingForwardsTimerActionsToTheActualPlaybackController() =
+    fun lyricsAndTimerScrollDoNotDismissPlayer() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 val track =
@@ -1982,6 +2864,11 @@ class LibraryAppShellJvmTest {
                         durationSeconds = 180,
                         accent = TrackAccent(0xFF123456, 0xFF654321),
                         source = AudioSource.FilePath("/sleep-timer.mp3"),
+                        lyrics =
+                            List(40) { index ->
+                                    "Sleep timer lyric ${index + 1}"
+                                }
+                                .joinToString("\n"),
                     )
                 val controller = PlaybackController(FakePlaybackEngine())
                 controller.setQueue(
@@ -2024,7 +2911,54 @@ class LibraryAppShellJvmTest {
                         useUnmergedTree = true,
                     )
                     .assertCountEquals(0)
+                onNode(hasText("Lyrics") and hasClickAction())
+                    .performScrollTo()
+                    .performClick()
+                repeat(8) {
+                    onNodeWithTag("NowPlayingLyricsList").performTouchInput {
+                        swipe(
+                            Offset(center.x, center.y + 120f),
+                            Offset(center.x, center.y - 120f),
+                            durationMillis = 500,
+                        )
+                    }
+                }
+                onNode(hasText("Sleep timer lyric 40")).assertIsDisplayed()
+                onNodeWithTag("NowPlayingContentRoot").performTouchInput {
+                    swipe(
+                        Offset(center.x, 40f),
+                        Offset(center.x, center.y / 2f),
+                        durationMillis = 600,
+                    )
+                }
+                waitForIdle()
+                onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                onNodeWithTag("NowPlayingLyricsList").assertIsDisplayed()
+                onNode(hasContentDescription("Close lyrics")).performClick()
                 onNode(hasText("Timer")).performScrollTo().performClick()
+                onNodeWithTag("NowPlayingSleepTimerPanel").performTouchInput {
+                    swipe(
+                        Offset(center.x, center.y + 120f),
+                        Offset(center.x, center.y - 120f),
+                        durationMillis = 600,
+                    )
+                }
+                waitForIdle()
+                onNode(
+                        hasContentDescription("3 tracks"),
+                        useUnmergedTree = true,
+                    )
+                    .assertIsDisplayed()
+                onNodeWithTag("NowPlayingTimerPanel").performTouchInput {
+                    swipe(
+                        Offset(center.x, 24f),
+                        Offset(center.x, center.y),
+                        durationMillis = 600,
+                    )
+                }
+                waitForIdle()
+                onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                onNodeWithTag("NowPlayingTimerPanel").assertIsDisplayed()
                 onNode(
                         hasContentDescription("15 minutes"),
                         useUnmergedTree = true,
@@ -2104,27 +3038,40 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun downwardPlayerSwipeClosesQueuePanelAndRestoresDock() =
+    fun queueBodyScrollAndReorderDoNotDismissPlayer() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
-                val track =
-                    Track(
-                        id = "drag-current",
-                        title = "Drag Current",
-                        artist = "Artist",
-                        album = "Album",
-                        durationSeconds = 180,
-                        accent = TrackAccent(0xFF123456, 0xFF654321),
-                        source = AudioSource.FilePath("/drag-current.mp3"),
+                val tracks =
+                    (0 until 20).map { index ->
+                        Track(
+                            id = "drag-track-$index",
+                            title = "Drag Track $index",
+                            artist = "Artist",
+                            album = "Album",
+                            durationSeconds = 180,
+                            accent = TrackAccent(0xFF123456, 0xFF654321),
+                            source =
+                                AudioSource.FilePath("/drag-track-$index.mp3"),
+                        )
+                    }
+                val occurrences = tracks.mapIndexed { index, track ->
+                    QueueOccurrence(
+                        "drag-occurrence-$index",
+                        track.toPlayableTrack(),
                     )
+                }
                 val controller = PlaybackController(FakePlaybackEngine())
-                controller.setQueue(
-                    listOf(track.toPlayableTrack()),
-                    selectedTrackId = track.id,
-                )
+                runBlocking {
+                    controller.setOccurrenceQueue(
+                        occurrences,
+                        selectedOccurrenceId = "drag-occurrence-0",
+                    )
+                }
                 waitUntil(timeoutMillis = 5_000) {
                     controller.state.value.status == PlaybackStatus.Paused
                 }
+                val playbackBefore = controller.state.value
+                val queueBefore = occurrences.map { it.id }
                 val input = DirectNavigationEventInput()
                 TestNavigationOwner.navigationEventDispatcher.addInput(input)
                 try {
@@ -2139,7 +3086,7 @@ class LibraryAppShellJvmTest {
                                 status = ScanStatus.Completed,
                                 startedAtEpochMillis = 1L,
                             ),
-                        tracks = listOf(track),
+                        tracks = tracks,
                         picker = CountingPicker(),
                         callbacks = CallbackRecorder(),
                         playbackController = controller,
@@ -2159,17 +3106,135 @@ class LibraryAppShellJvmTest {
                     onNodeWithContentDescription("Back to player")
                         .assertIsDisplayed()
 
-                    onNodeWithTag("NowPlayingContentRoot").performTouchInput {
+                    val queuePanel = onNodeWithTag("NowPlayingQueuePanel")
+                    queuePanel.performTouchInput {
                         swipe(
-                            Offset(160f, center.y),
-                            Offset(160f, 700f),
+                            Offset(center.x, 36f),
+                            Offset(center.x, center.y),
+                            durationMillis = 600,
                         )
                     }
                     waitForIdle()
 
-                    onNodeWithTag("NowPlayingShellPlacement")
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    queuePanel.assertDoesNotExist()
+                    onNodeWithContentDescription("Back to player")
+                        .assertDoesNotExist()
+                    onNodeWithText("Player is closed").assertDoesNotExist()
+                    assertEquals(playbackBefore, controller.state.value)
+                    assertEquals(
+                        queueBefore,
+                        controller.state.value.queue.map { it.id },
+                    )
+
+                    onNodeWithTag("NowPlayingQueueButton").performClick()
+                    waitForIdle()
+                    queuePanel.assertIsDisplayed()
+                    onNodeWithContentDescription("Back to player")
                         .assertIsDisplayed()
-                    onNodeWithText("Player is closed").assertIsDisplayed()
+
+                    queuePanel.performTouchInput {
+                        swipe(
+                            Offset(center.x, height - 24f),
+                            Offset(center.x, 24f),
+                            durationMillis = 600,
+                        )
+                    }
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingQueueList").performTouchInput {
+                        swipe(
+                            Offset(center.x, height - 24f),
+                            Offset(center.x, 24f),
+                            durationMillis = 600,
+                        )
+                    }
+                    waitForIdle()
+                    onNodeWithText("Drag Track 19").assertIsDisplayed()
+
+                    onNodeWithTag("NowPlayingQueueList")
+                        .performScrollToNode(
+                            hasContentDescription(
+                                "Reorder Drag Track 2 in queue",
+                            ),
+                        )
+                    val secondHandle =
+                        onNodeWithContentDescription(
+                            "Reorder Drag Track 2 in queue",
+                            useUnmergedTree = true,
+                        )
+                    onNodeWithTag("NowPlayingQueueList")
+                        .performScrollToNode(
+                            hasContentDescription(
+                                "Reorder Drag Track 1 in queue",
+                            ),
+                        )
+                    val firstHandle =
+                        onNodeWithContentDescription(
+                            "Reorder Drag Track 1 in queue",
+                            useUnmergedTree = true,
+                        )
+                    val reorderDistance =
+                        firstHandle.fetchSemanticsNode().boundsInRoot.center.y -
+                            secondHandle
+                                .fetchSemanticsNode()
+                                .boundsInRoot
+                                .center
+                                .y
+                    secondHandle.performTouchInput {
+                        down(center)
+                        advanceEventTime(600)
+                        moveBy(Offset(0f, reorderDistance))
+                        up()
+                    }
+                    val queueAfterReorder =
+                        listOf(
+                            "drag-occurrence-0",
+                            "drag-occurrence-2",
+                            "drag-occurrence-1",
+                        ) + queueBefore.drop(3)
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.queue.map { it.id } ==
+                            queueAfterReorder
+                    }
+                    assertEquals(
+                        "drag-occurrence-0",
+                        controller.state.value.currentOccurrenceId,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Paused,
+                        controller.state.value.status,
+                    )
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    queuePanel.assertIsDisplayed()
+
+                    onNodeWithContentDescription("Back to player")
+                        .performTouchInput {
+                            swipe(
+                                center,
+                                center + Offset(0f, 120f),
+                                durationMillis = 600,
+                            )
+                        }
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    onNodeWithTag("NowPlayingQueuePanel").assertDoesNotExist()
+                    onNodeWithContentDescription("Back to player")
+                        .assertDoesNotExist()
+                    assertEquals(
+                        queueAfterReorder,
+                        controller.state.value.queue.map { it.id },
+                    )
+
+                    onNodeWithTag("NowPlayingQueueButton").performClick()
+                    onNodeWithContentDescription("Back to player")
+                        .performClick()
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    onNodeWithTag("NowPlayingQueuePanel").assertDoesNotExist()
+                    assertEquals(
+                        queueAfterReorder,
+                        controller.state.value.queue.map { it.id },
+                    )
                 } finally {
                     TestNavigationOwner.navigationEventDispatcher.removeInput(
                         input,
@@ -2214,6 +3279,7 @@ class LibraryAppShellJvmTest {
                 waitUntil(timeoutMillis = 5_000) {
                     controller.state.value.status == PlaybackStatus.Paused
                 }
+                val queueBefore = controller.state.value.queue.map { it.id }
                 val input = DirectNavigationEventInput()
                 TestNavigationOwner.navigationEventDispatcher.addInput(input)
                 try {
@@ -2782,7 +3848,7 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun widePlayerQueueDialogStaysAbovePlayerAndBackDismissesInLayers() =
+    fun protectedOverlayBlocksUnderlyingPlayerDrag() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 fun track(id: String, title: String) =
@@ -2935,6 +4001,28 @@ class LibraryAppShellJvmTest {
                     )
                     onNode(hasSetTextAction()).performTextInput("Trip")
 
+                    onNodeWithTag(
+                            "HausDialogPanel",
+                            useUnmergedTree = true,
+                        )
+                        .performTouchInput {
+                            swipe(
+                                Offset(center.x, center.y - 80f),
+                                Offset(center.x, center.y + 80f),
+                                durationMillis = 600,
+                            )
+                        }
+                    waitForIdle()
+                    onNode(hasText("Save queue as playlist"))
+                        .assertIsDisplayed()
+                    onNode(hasText("Create playlist")).assertIsDisplayed()
+                    onNode(hasText("Trip")).assertIsDisplayed()
+                    assertEquals(before.queue, controller.state.value.queue)
+                    assertEquals(
+                        "current",
+                        controller.state.value.currentOccurrenceId,
+                    )
+
                     input.backStarted(NavigationEvent())
                     input.backCancelled()
                     waitForIdle()
@@ -3025,6 +4113,101 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun platformBackKeepsExistingLayerPrecedence() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "back-precedence-track",
+                        title = "Back precedence track",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source =
+                            AudioSource.FilePath("/back-precedence-track.mp3"),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                controller.setQueue(
+                    listOf(track.toPlayableTrack()),
+                    selectedTrackId = track.id,
+                )
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Paused
+                }
+                val queueBefore = controller.state.value.queue.map { it.id }
+                val input = DirectNavigationEventInput()
+                TestNavigationOwner.navigationEventDispatcher.addInput(input)
+                try {
+                    mount(
+                        width = 1280.dp,
+                        height = 800.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                "back-precedence-route",
+                                "source",
+                                ScanStatus.Completed,
+                                1,
+                            ),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+                    onNodeWithTag(
+                            "NowPlayingShellPlacement",
+                            useUnmergedTree = true,
+                        )
+                        .performClick()
+                    onNode(hasContentDescription("Queue")).performClick()
+                    onNodeWithTag("NowPlayingQueuePanel").assertIsDisplayed()
+                    input.backStarted(NavigationEvent())
+                    input.backCompleted()
+                    waitForIdle()
+
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    onNodeWithTag("NowPlayingQueuePanel").assertDoesNotExist()
+                    onNode(hasContentDescription("Back to player"))
+                        .assertDoesNotExist()
+                    assertEquals(
+                        track.id,
+                        controller.state.value.currentTrack?.id,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Paused,
+                        controller.state.value.status,
+                    )
+                    assertEquals(
+                        queueBefore, controller.state.value.queue.map { it.id })
+
+                    input.backStarted(NavigationEvent())
+                    input.backCompleted()
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingContentRoot").assertDoesNotExist()
+                    onNodeWithTag("NowPlayingShellPlacement")
+                        .assertIsDisplayed()
+                    assertEquals(
+                        track.id,
+                        controller.state.value.currentTrack?.id,
+                    )
+                    assertEquals(
+                        PlaybackStatus.Paused,
+                        controller.state.value.status,
+                    )
+                    assertEquals(
+                        queueBefore, controller.state.value.queue.map { it.id })
+                } finally {
+                    TestNavigationOwner.navigationEventDispatcher.removeInput(
+                        input,
+                    )
+                    controller.release()
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun replacingLyricsTrackClosesReaderBeforePlayerBack() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
@@ -3037,7 +4220,11 @@ class LibraryAppShellJvmTest {
                         durationSeconds = 180,
                         accent = TrackAccent(0xFF123456, 0xFF654321),
                         source = AudioSource.FilePath("/lyrics-a.mp3"),
-                        lyrics = "First local lyric",
+                        lyrics =
+                            List(40) { index ->
+                                    "First local lyric ${index + 1}"
+                                }
+                                .joinToString("\n"),
                     )
                 val second =
                     first.copy(
@@ -3093,9 +4280,28 @@ class LibraryAppShellJvmTest {
                     waitForIdle()
                     onNode(hasContentDescription("Close lyrics"))
                         .assertIsDisplayed()
-                    onNode(hasText("First local lyric"))
-                        .performScrollTo()
-                        .assertIsDisplayed()
+                    repeat(8) {
+                        onNodeWithTag("NowPlayingLyricsList")
+                            .performTouchInput {
+                                swipe(
+                                    Offset(center.x, center.y + 120f),
+                                    Offset(center.x, center.y - 120f),
+                                    durationMillis = 500,
+                                )
+                            }
+                    }
+                    onNode(hasText("First local lyric 40")).assertIsDisplayed()
+                    onNodeWithTag("NowPlayingContentRoot").performTouchInput {
+                        swipe(
+                            Offset(center.x, 40f),
+                            Offset(center.x, center.y / 2f),
+                            durationMillis = 600,
+                        )
+                    }
+                    waitForIdle()
+                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
+                    onNodeWithTag("NowPlayingLyricsList").assertIsDisplayed()
+                    onNode(hasText("First local lyric 40")).assertIsDisplayed()
 
                     controller.skipToNext()
                     waitUntil(timeoutMillis = 5_000) {
@@ -3423,6 +4629,7 @@ class LibraryAppShellJvmTest {
         backupDocumentAvailable: Boolean = false,
         onOpenPlaylistBackup: () -> Unit = {},
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
+        onConfirmPlaylistBackup: () -> Unit = {},
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
@@ -3459,6 +4666,7 @@ class LibraryAppShellJvmTest {
             backupDocumentAvailable = backupDocumentAvailable,
             onOpenPlaylistBackup = onOpenPlaylistBackup,
             onPlaylistBackupAction = onPlaylistBackupAction,
+            onConfirmPlaylistBackup = onConfirmPlaylistBackup,
             desktopDropTarget = desktopDropTarget,
             onDesktopDropAvailabilityChanged = onDesktopDropAvailabilityChanged,
             onLoadTrackMetadata = onLoadTrackMetadata,
@@ -3500,6 +4708,7 @@ class LibraryAppShellJvmTest {
         backupDocumentAvailable: Boolean = false,
         onOpenPlaylistBackup: () -> Unit = {},
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
+        onConfirmPlaylistBackup: () -> Unit = {},
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
@@ -3560,7 +4769,7 @@ class LibraryAppShellJvmTest {
                             onOpenPlaylistFormat = { _: PlaylistDocumentFormat
                                 ->
                             },
-                            onConfirmPlaylistBackup = {},
+                            onConfirmPlaylistBackup = onConfirmPlaylistBackup,
                             onPlaylistBackupAction = onPlaylistBackupAction,
                             sources = listOf(source),
                             folderPickerLauncher = picker,

@@ -1,4 +1,5 @@
 <resources>
+    <string name="close_player">Close player</string>
     <string name="mini_player_empty_subtitle">Add music in Settings to start listening</string>
     <string name="next_track">Next track</string>
     <string name="favorite_action">Favorite</string>

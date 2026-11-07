@@ -70,6 +70,8 @@ theme persistence/actuals/Koin/root theme application; `RhythHausThemeMode` and 
 core UI. The planned `SettingsScreen` will include picker visibility/availability, mutation and
 imported-track booleans, `onRequestClearLibrary`, and a nullable library-maintenance-confirmation slot. Shared will
 resolve source IDs against current authority at invocation, no-op stale IDs, and recheck guards.
+About and licenses callbacks carry feature-localized title strings in Shared route entries; Shared
+renders the common header without duplicating Settings-owned resources.
 
 Appearance crosses the same callback-first boundary as immutable `SettingsAppearanceState`, with
 no platform or Shared types. Shared alone persists mode, palette, and Monet intent through the
@@ -144,6 +146,13 @@ while in flight, and callback return never settles or releases suppression. Reje
 intent without treating the target as settled; any later Back is a new intent. Predictive latch,
 cancellation, and no-fallthrough semantics remain unchanged.
 
+Now Playing's downward whole-player dismissal also crosses the explicit composition boundary:
+Shared gates its gesture modifier on player visibility, protected-window-overlay state, and
+`NowPlayingPanel.Controls`, then supplies it through the Shared `NowPlayingScreen` facade to the
+feature's non-interactive artwork and leading spacer. Shared remains the only whole-player
+dismissal and Back owner. Queue's header may close only its own panel through the existing callback;
+Queue body scroll/reorder and the accessible Back chip retain their feature-owned behavior.
+
 Task 5.2 moves adapters only: `:core:database` remains sole physical owner with no `.sq`, `.sqm`,
 schema, migration, generated DB, driver, database-name, or FK changes. Serialization/revision/
 cancellation, backup exclusivity, exact 4 MiB limits, mappings, stale-library rejection,
@@ -181,20 +190,21 @@ part of this migration.
 
 Search exposes exactly explicit-public, declaration-specific-KDoc `SearchSharedLabels` and
 callback-first `SearchContent`: Library API tracks; primitive current-track/playing state; plain
-Shared labels and a composable selection-label formatter that resolves `select_track_format` with
+Shared clear/Now Playing labels and a composable selection-label formatter that resolves `select_track_format` with
 structured Compose `stringResource` during row composition without a generated resource handle;
-selection/visible-ID/scroll/ordered-play/dismiss callbacks; a Shared playing-indicator slot; and
+selection/visible-ID/scroll/ordered-play/playback-completion callbacks; a Shared playing-indicator slot; and
 only `Dp`/`Modifier` layout defaults. It exposes no
 Shared/generated-resource/playback-controller-or-state/queue/repository/Koin/platform type. Shared
-remains sole facade and directly composes `SearchContent` from `LibraryRoutes`; no Shared
-compatibility screen or unused TagLib reader remains. Shared retains route/Back, selection
+remains sole facade and directly composes `SearchContent` below the Shared route header from
+`LibraryRoutes`; no Shared compatibility screen or unused TagLib reader remains. Shared retains route title/Back, selection
 reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing policy,
 and `EqualizerStrip`; Search owns local query/filter/render/focus/count/empty behavior and Search
 row interaction. Search uses a private rendering identity of filtered occurrence index plus track
 ID, never `track.id` alone, which is unique for duplicate rows and does not alter `LibraryTrack`,
 selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search-only
-strings are feature-owned exactly once, while Shared injects title, clear, Now Playing, and
-composable select-track formatting as values; no resource handles cross. The
+strings are feature-owned exactly once, while Shared injects clear and Now Playing plus composable
+select-track formatting as values; Shared's route header supplies the title. No resource handles
+cross. The
 normative boundary is [the approved Search design](../superpowers/specs/2026-08-07-search-feature-extraction-design.md).
 
 ## Consequences
@@ -342,6 +352,11 @@ occurrence identity/order and unchanged `onPlayEntry` carries it. Browser overla
 there is no new project edge, Shared edge, or callback redesign. Causal checks cover projection
 fields/artwork bytes, direct detail input, occurrence order/selection, and failure/settlement.
 
+Shared owns measured route title/Back chrome for the playlist hub, saved detail, and smart detail.
+Playlist feature screens do not accept route-level Back callbacks or render duplicate route toolbar
+rows. Playlist row actions, edit state, smart-rule drafts, document flows, dialogs, and dismissal
+publication remain feature-owned and retain their existing callbacks.
+
 ### Fourth-Review Literal Amendment
 
 ### Oracle Conversion Inventory Correction
@@ -373,8 +388,8 @@ above. `docs/architecture.md` carries the binding declaration ledger copied from
 (`Album(trackCount, artist?)`, `Artist(albumCount, trackCount)`), `LibrarySharedLabels`,
 `LibraryHomeContent`, and `DrillDownView`.
 
-`LibrarySharedLabels` has exactly twelve members: Shared supplies `addMusicFolder`,
-`folderPickerUnavailable`, `clearLibrary`, `cancel`, `libraryTitle`, `albumArt`, `albumArtwork`, and
+`LibrarySharedLabels` has exactly eleven members: Shared supplies `addMusicFolder`,
+`folderPickerUnavailable`, `clearLibrary`, `cancel`, `albumArt`, `albumArtwork`, and
 `nowPlayingBadge` as `String` values, and `selectTrack`/`trackArtistAlbum` as
 `@Composable (String) -> String` and `@Composable (String, String) -> String`; the feature owns the
 default `addFavorite` and `removeFavorite` formatters (`@Composable (String) -> String`).

@@ -19,6 +19,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -111,6 +112,7 @@ import com.eterocell.rhythhaus.ui.HausWindowOverlayHost
 import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayPublisher
 import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayVisible
+import com.eterocell.rhythhaus.ui.VerticalSheetGestureDirection
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberHausReducedMotion
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
@@ -140,7 +142,9 @@ import rhythhaus.shared.generated.resources.pause
 import rhythhaus.shared.generated.resources.play
 import rhythhaus.shared.generated.resources.playlists
 import rhythhaus.shared.generated.resources.queue
+import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.select_track_format
+import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -175,7 +179,6 @@ internal fun librarySharedLabels(): LibrarySharedLabels =
             stringResource(Res.string.folder_picker_unavailable),
         clearLibrary = stringResource(Res.string.clear_library),
         cancel = stringResource(Res.string.cancel),
-        libraryTitle = stringResource(Res.string.library),
         albumArt = stringResource(Res.string.album_art),
         albumArtwork = stringResource(Res.string.album_artwork),
         nowPlayingBadge = stringResource(Res.string.now_playing_badge),
@@ -755,6 +758,7 @@ fun LibraryHomeScreen(
         bottomContentPadding: Dp,
         backupHostActive: Boolean,
         interactive: Boolean,
+        safeContentPadding: PaddingValues = PaddingValues(),
     ) {
         LibraryRouteScreen(
             route = route,
@@ -832,9 +836,11 @@ fun LibraryHomeScreen(
             onRejectInvalidOnboarding = appState::popRoute,
             onCloseOnboarding = appState::popRoute,
             pushRoute = ::pushRoute,
-            onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
-            onShowOpenSourceLibraries = {
-                pushRoute(LibraryRoute.OpenSourceLibraries)
+            onShowSettingsAbout = { title ->
+                pushRoute(LibraryRoute.SettingsAbout(title))
+            },
+            onShowOpenSourceLibraries = { title ->
+                pushRoute(LibraryRoute.OpenSourceLibraries(title))
             },
             onDismiss = requestLibraryBack,
             onScrollPositionChanged = { scrollPosition ->
@@ -850,6 +856,7 @@ fun LibraryHomeScreen(
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = bottomContentPadding,
             onEditTrackMetadata = editAction,
+            safeContentPadding = safeContentPadding,
         )
     }
 
@@ -858,6 +865,7 @@ fun LibraryHomeScreen(
         entry: LibraryNavigationEntry,
         bottomContentPadding: Dp,
         onOpenDetailRoute: (LibraryRoute) -> Unit = ::pushRoute,
+        safeContentPadding: PaddingValues = PaddingValues(),
     ) {
         val route = entry.route
         LibraryRouteContent(
@@ -903,6 +911,7 @@ fun LibraryHomeScreen(
             onSetTrackFavorite = onSetTrackFavorite,
             onEditTrackMetadata = editAction,
             metadataEditorOpen = metadataEditor != null,
+            safeContentPadding = safeContentPadding,
             documentActions = {
                 if (route == LibraryRoute.PlaylistHub &&
                     playlistState.hasConfirmedSnapshot) {
@@ -1023,6 +1032,7 @@ fun LibraryHomeScreen(
     fun RenderEntry(
         entry: LibraryNavigationEntry,
         bottomContentPadding: Dp,
+        safeContentPadding: PaddingValues = PaddingValues(),
     ) {
         val interactive = entry == appState.navigation.currentEntry
         val routeInteractive =
@@ -1033,9 +1043,9 @@ fun LibraryHomeScreen(
             DestinationContent(entry) {
                 when (entry.route) {
                     LibraryRoute.Settings,
-                    LibraryRoute.SettingsAbout,
-                    LibraryRoute.OpenSourceLibraries,
                     LibraryRoute.Search,
+                    is LibraryRoute.SettingsAbout,
+                    is LibraryRoute.OpenSourceLibraries,
                     is LibraryRoute.Onboarding,
                     ->
                         RouteScreen(
@@ -1043,18 +1053,21 @@ fun LibraryHomeScreen(
                             bottomContentPadding,
                             backupHostActive = interactive,
                             interactive = routeInteractive,
+                            safeContentPadding = safeContentPadding,
                         )
 
                     LibraryRoute.PlaylistHub -> {
                         RouteContent(
                             entry,
                             bottomContentPadding,
+                            safeContentPadding = safeContentPadding,
                         )
                         RouteScreen(
                             entry.route,
                             bottomContentPadding,
                             backupHostActive = interactive,
                             interactive = routeInteractive,
+                            safeContentPadding = safeContentPadding,
                         )
                     }
 
@@ -1062,6 +1075,7 @@ fun LibraryHomeScreen(
                         RouteContent(
                             entry,
                             bottomContentPadding,
+                            safeContentPadding = safeContentPadding,
                         )
                 }
             }
@@ -1077,8 +1091,95 @@ fun LibraryHomeScreen(
         ) {
             val rootBackdrop = rememberRhythHausBackdrop()
             val currentRoute = appState.navigation.current
-            val windowWidthDp = maxWidth.value
-            val windowHeightDp = maxHeight.value
+            val rawWindowWidthDp = maxWidth.value
+            val rawWindowHeightDp = maxHeight.value
+            val safeBounds =
+                rememberAppShellWindowBounds(
+                    widthDp = rawWindowWidthDp,
+                    heightDp = rawWindowHeightDp,
+                )
+            val routeHeader =
+                when (val route = currentRoute) {
+                    LibraryRoute.Home ->
+                        AppShellRouteHeader(
+                            title = stringResource(Res.string.library),
+                            onBack = null,
+                            actions = emptyList(),
+                        )
+                    LibraryRoute.Search ->
+                        AppShellRouteHeader(
+                            title = stringResource(Res.string.search),
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.AlbumDetail ->
+                        AppShellRouteHeader(
+                            title = route.album,
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.ArtistDetail ->
+                        AppShellRouteHeader(
+                            title = route.artist,
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    LibraryRoute.PlaylistHub ->
+                        AppShellRouteHeader(
+                            title = stringResource(Res.string.playlists),
+                            onBack = null,
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.PlaylistDetail ->
+                        AppShellRouteHeader(
+                            title =
+                                playlistState.confirmedSnapshot
+                                    .playlist(route.playlistId)
+                                    ?.name
+                                    ?: stringResource(Res.string.playlists),
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.SmartPlaylistDetail ->
+                        AppShellRouteHeader(
+                            title =
+                                playlistState.confirmedSnapshot
+                                    .smartPlaylist(route.smartPlaylistId)
+                                    ?.name
+                                    ?: stringResource(Res.string.playlists),
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    LibraryRoute.Settings ->
+                        AppShellRouteHeader(
+                            title = stringResource(Res.string.settings),
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.SettingsAbout ->
+                        AppShellRouteHeader(
+                            title = route.title,
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    is LibraryRoute.OpenSourceLibraries ->
+                        AppShellRouteHeader(
+                            title = route.title,
+                            onBack = { requestLibraryBack() },
+                            actions = emptyList(),
+                        )
+                    else -> null
+                }
+            val safeContentPadding =
+                remember(routeHeader == null, safeBounds.topInset) {
+                    PaddingValues(
+                        top =
+                            if (routeHeader == null) safeBounds.topInset
+                            else 0.dp,
+                    )
+                }
+            val windowWidthDp = safeBounds.widthDp
+            val windowHeightDp = safeBounds.heightDp
             val desktopDensity =
                 appNavigationLayoutFor(windowWidthDp) !=
                     AppNavigationLayout.Bottom
@@ -1125,10 +1226,14 @@ fun LibraryHomeScreen(
                         restoreFocusWhenInteractive = !playerWasOpened,
                     ) {
                         AppShellLayout(
-                            windowWidthDp = windowWidthDp,
+                            safeBounds = safeBounds,
+                            routeHeader = routeHeader,
                             navigationVisible =
                                 desktopModalFree &&
-                                    currentRoute != LibraryRoute.NowPlaying,
+                                    currentRoute != LibraryRoute.NowPlaying &&
+                                    !(appNavigationLayoutFor(windowWidthDp) ==
+                                        AppNavigationLayout.Bottom &&
+                                        currentRoute.isToolRoute()),
                             selectedDestination =
                                 primaryDestinationFor(currentRoute),
                             activeBrowseMode =
@@ -1161,9 +1266,6 @@ fun LibraryHomeScreen(
                             onSettings = { pushRoute(LibraryRoute.Settings) },
                             showSettingsAction =
                                 primaryDestinationFor(currentRoute) != null,
-                            contentHandlesSafeBottomInset =
-                                currentRoute == LibraryRoute.NowPlaying ||
-                                    currentRoute is LibraryRoute.Onboarding,
                             bottomBarContent = bottomBarContent,
                             content = {
                                 val routeBottomContentPadding = 0.dp
@@ -1172,6 +1274,7 @@ fun LibraryHomeScreen(
                                         RenderEntry(
                                             appState.navigation.currentEntry,
                                             routeBottomContentPadding,
+                                            safeContentPadding,
                                         )
 
                                     adaptiveLayoutMode ==
@@ -1201,6 +1304,7 @@ fun LibraryHomeScreen(
                                                                         routeBottomContentPadding,
                                                                         ::
                                                                             openDetailRoute,
+                                                                        safeContentPadding,
                                                                     )
                                                                 }
                                                         }
@@ -1223,6 +1327,7 @@ fun LibraryHomeScreen(
                                                             appState.navigation
                                                                 .currentEntry,
                                                             routeBottomContentPadding,
+                                                            safeContentPadding,
                                                         )
                                                     }
                                             }
@@ -1234,6 +1339,7 @@ fun LibraryHomeScreen(
                                             RenderEntry(
                                                 previousEntry,
                                                 routeBottomContentPadding,
+                                                safeContentPadding,
                                             )
                                         }
                                         AnimatedContent(
@@ -1261,6 +1367,7 @@ fun LibraryHomeScreen(
                                             RenderEntry(
                                                 currentEntry,
                                                 routeBottomContentPadding,
+                                                safeContentPadding,
                                             )
                                         }
                                     }
@@ -1410,6 +1517,8 @@ fun LibraryHomeScreen(
                     },
                     isVisible = appState.showNowPlaying,
                     expandProgress = expandProgress,
+                    screenHeightPx = screenHeightPx,
+                    safeBounds = safeBounds,
                     onBack = requestLibraryBack,
                     favoriteTrackIds = favoriteTrackIds,
                     onSetTrackFavorite = onSetTrackFavorite,
@@ -1655,6 +1764,8 @@ private fun NowPlayingExpandOverlay(
     artworkLoader: suspend (String) -> ByteArray?,
     isVisible: Boolean,
     expandProgress: Animatable<Float, AnimationVector1D>,
+    screenHeightPx: Float,
+    safeBounds: AppShellSafeBounds,
     onBack: () -> Unit,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
@@ -1683,6 +1794,19 @@ private fun NowPlayingExpandOverlay(
         val fraction = expandProgress.value
         val playerFocusRequester = remember { FocusRequester() }
         val windowOverlayVisible = LocalHausWindowOverlayVisible.current
+        val controlsDismissGestureModifier =
+            Modifier.verticalSheetGesture(
+                expandProgress = expandProgress,
+                isActive =
+                    isVisible &&
+                        !windowOverlayVisible &&
+                        panelPresentation.panel == NowPlayingPanel.Controls,
+                scope = gestureScope,
+                direction = VerticalSheetGestureDirection.Downward,
+                onTerminal = nowPlayingSwipeCollapseAction(appState),
+                referenceHeight = screenHeightPx.takeIf { it > 0f },
+                preferDownwardDragOverScroll = true,
+            )
         val playerInteractive = isVisible
         LaunchedEffect(isVisible) {
             if (isVisible && !windowOverlayVisible) {
@@ -1704,18 +1828,7 @@ private fun NowPlayingExpandOverlay(
                 modifier =
                     Modifier.fillMaxWidth()
                         .fillMaxHeight(fraction)
-                        .align(Alignment.BottomCenter)
-                        .verticalSheetGesture(
-                            expandProgress = expandProgress,
-                            isActive = isVisible,
-                            scope = gestureScope,
-                            direction =
-                                com.eterocell.rhythhaus.ui
-                                    .VerticalSheetGestureDirection
-                                    .Downward,
-                            onTerminal =
-                                nowPlayingSwipeCollapseAction(appState),
-                        ),
+                        .align(Alignment.BottomCenter),
                 shape =
                     RoundedCornerShape(
                         topStart = cornerRadius,
@@ -1729,57 +1842,62 @@ private fun NowPlayingExpandOverlay(
                     interactive = playerInteractive,
                     clearFocusWhenInactive = !windowOverlayVisible,
                 ) {
-                    NowPlayingScreen(
-                        track = track,
-                        playbackState = playbackState,
-                        playbackController = playbackController,
-                        tagLibReader = tagLibReader,
-                        currentLibraryTrack = currentLibraryTrack,
-                        onBack = onBack,
-                        sleepTimerState = sleepTimerState,
-                        onArmSleepTimer = onArmSleepTimer,
-                        onArmSleepTimerAfterCompletions =
-                            onArmSleepTimerAfterCompletions,
-                        onCancelSleepTimer = onCancelSleepTimer,
-                        activePanel = panelPresentation.panel,
-                        onPanelChange = panelPresentation.onPanelChange,
-                        queueContent = {
-                            PlaybackQueueContent(
-                                playbackState = playbackState,
-                                destination = playlistDestination,
-                                appearanceSource = playlistAppearanceSource,
-                                dismissalPublisher = queueDismissalPublisher,
-                                windowOverlayPublisher =
-                                    LocalHausWindowOverlayPublisher.current,
-                                onClose = {
-                                    panelPresentation.onPanelChange(
-                                        NowPlayingPanel.Controls,
-                                    )
-                                },
-                                onSaveQueueAsPlaylist = {
-                                    name,
-                                    trackIds,
-                                    onOutcome ->
-                                    onPlaylistMutation(
-                                        {
-                                            playlistRepository
-                                                .createWithEntries(
-                                                    name,
-                                                    trackIds,
-                                                )
-                                        },
-                                        onOutcome,
-                                    )
-                                },
-                                onReorderUpcoming = queueMutations::reorder,
-                                onRemoveUpcoming = queueMutations::remove,
-                                onClearUpcoming = queueMutations::clear,
-                                artworkLoader = artworkLoader,
-                            )
-                        },
-                        favoriteTrackIds = favoriteTrackIds,
-                        onSetTrackFavorite = onSetTrackFavorite,
-                    )
+                    NowPlayingSafeFrame(safeBounds) {
+                        NowPlayingScreen(
+                            track = track,
+                            playbackState = playbackState,
+                            playbackController = playbackController,
+                            tagLibReader = tagLibReader,
+                            currentLibraryTrack = currentLibraryTrack,
+                            onBack = onBack,
+                            sleepTimerState = sleepTimerState,
+                            onArmSleepTimer = onArmSleepTimer,
+                            onArmSleepTimerAfterCompletions =
+                                onArmSleepTimerAfterCompletions,
+                            onCancelSleepTimer = onCancelSleepTimer,
+                            activePanel = panelPresentation.panel,
+                            onPanelChange = panelPresentation.onPanelChange,
+                            controlsDismissGestureModifier =
+                                controlsDismissGestureModifier,
+                            queueContent = {
+                                PlaybackQueueContent(
+                                    playbackState = playbackState,
+                                    destination = playlistDestination,
+                                    appearanceSource = playlistAppearanceSource,
+                                    dismissalPublisher =
+                                        queueDismissalPublisher,
+                                    windowOverlayPublisher =
+                                        LocalHausWindowOverlayPublisher.current,
+                                    onClose = {
+                                        panelPresentation.onPanelChange(
+                                            NowPlayingPanel.Controls,
+                                        )
+                                    },
+                                    onSaveQueueAsPlaylist = {
+                                        name,
+                                        trackIds,
+                                        onOutcome ->
+                                        onPlaylistMutation(
+                                            {
+                                                playlistRepository
+                                                    .createWithEntries(
+                                                        name,
+                                                        trackIds,
+                                                    )
+                                            },
+                                            onOutcome,
+                                        )
+                                    },
+                                    onReorderUpcoming = queueMutations::reorder,
+                                    onRemoveUpcoming = queueMutations::remove,
+                                    onClearUpcoming = queueMutations::clear,
+                                    artworkLoader = artworkLoader,
+                                )
+                            },
+                            favoriteTrackIds = favoriteTrackIds,
+                            onSetTrackFavorite = onSetTrackFavorite,
+                        )
+                    }
                 }
             }
         }

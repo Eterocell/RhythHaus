@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,6 +27,7 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausTypography
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import org.jetbrains.compose.resources.stringResource
@@ -37,14 +39,6 @@ import rhythhaus.feature.library.generated.resources.recently_played_empty
 import rhythhaus.feature.library.generated.resources.track_count_format
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-
-/**
- * Resolves the home list top content padding from the system bar inset.
- *
- * @param systemBarTopPadding the system bar top padding in density pixels.
- */
-public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
-    systemBarTopPadding
 
 /**
  * Renders the library home using only raw feature inputs and callbacks. It owns
@@ -196,8 +190,6 @@ public fun LibraryHomeContent(
     val homeListState = rememberLazyListState()
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth.value < WIDE_LIBRARY_BREAKPOINT_DP
-        val homeTopContentPadding =
-            libraryHomeTopContentPadding(rememberSystemBarTopPadding())
         Box(
             modifier =
                 Modifier.fillMaxSize().recordRhythHausBackdrop(homeBackdrop),
@@ -207,20 +199,22 @@ public fun LibraryHomeContent(
                 color = HausColors.current.background) {
                     LazyColumn(
                         state = homeListState,
-                        modifier =
-                            Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                        contentPadding =
-                            PaddingValues(top = homeTopContentPadding),
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(18.dp),
                     ) {
                         item {
-                            HeaderSection(
-                                title = labels.libraryTitle,
-                                subtitle =
+                            Text(
+                                text =
                                     stringResource(
                                         Res.string.track_count_format,
                                         tracks.size,
                                     ),
+                                color = HausColors.current.textSecondary,
+                                style = HausTypography.secondary,
+                                modifier =
+                                    Modifier.fillMaxWidth().semantics {
+                                        testTag = "library-track-count"
+                                    },
                             )
                         }
                         if (tracks.isEmpty() &&

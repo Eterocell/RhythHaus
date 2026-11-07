@@ -64,8 +64,10 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.HausSpacing
 import com.eterocell.rhythhaus.theme.HausThemeColorSource
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -80,6 +82,7 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back
 import rhythhaus.feature.settings.generated.resources.Res as SettingsRes
+import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.appearance_palette_moss
 import rhythhaus.feature.settings.generated.resources.appearance_save_error
 import rhythhaus.feature.settings.generated.resources.appearance_source_fallback
@@ -152,6 +155,11 @@ public class SettingsScreenSemanticsJvmTest {
         assertEquals(sectionIndexes.sorted(), sectionIndexes)
 
         onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsAboutTestTag))
+        onNodeWithTag("settings-about-app-icon", useUnmergedTree = true)
+            .assertIsDisplayed()
+
+        onNodeWithTag(SettingsListTestTag)
             .performScrollToNode(hasTestTag("settings-output-status"))
         onNodeWithTag("settings-output-status")
             .assert(hasText("Active output unavailable"))
@@ -176,6 +184,56 @@ public class SettingsScreenSemanticsJvmTest {
         assertEquals(listOf(SettingsGaplessMode.On), gaplessRequests)
         assertEquals(
             listOf(SettingsAutomaticResumePolicy.Never), resumeRequests)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun hiddenRouteHeaderStartsListContentAtDocumentedPagePadding():
+        Unit = runComposeUiTest {
+        val listState = LazyListState()
+        val topContentPadding = 24.dp
+        var backLabel = ""
+        setContent {
+            backLabel = stringResource(CoreUiRes.string.back)
+            Box(Modifier.size(600.dp, 1_200.dp)) {
+                content(
+                    listState = listState,
+                    showRouteHeader = false,
+                    topContentPadding = topContentPadding,
+                )
+            }
+        }
+        val heading =
+            onNodeWithTag(SettingsSectionAppearanceTag).fetchSemanticsNode()
+        // The heading carries its own `HausSpacing.lg` top padding, so the
+        // rendered top is the page padding plus that inset. A retained empty
+        // header item would add `itemSpacing` on top of it.
+        val expectedTop =
+            with(heading.layoutInfo.density) {
+                (topContentPadding +
+                        CompactSettingsLayoutPolicy.verticalPagePadding +
+                        HausSpacing.lg)
+                    .toPx()
+            }
+        assertEquals(
+            expectedTop,
+            heading.boundsInRoot.top,
+            absoluteTolerance = 1f,
+            message =
+                "the first settings content must begin at the documented " +
+                    "page padding without an empty header list item",
+        )
+        runOnIdle {
+            assertEquals(
+                SettingsSectionAppearanceTag,
+                listState.layoutInfo.visibleItemsInfo.firstOrNull()?.key,
+            )
+        }
+        onAllNodes(
+                hasClickAction() and
+                    hasAnyDescendant(hasContentDescription(backLabel)),
+                useUnmergedTree = true)
+            .assertCountEquals(0)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -1493,11 +1551,21 @@ public class SettingsScreenSemanticsJvmTest {
         runComposeUiTest {
             var about = 0
             var dismissed = 0
-            setContent { content(onAbout = { about++ }) }
+            var aboutTitle = ""
+            var expectedAboutTitle = ""
+            setContent {
+                expectedAboutTitle = stringResource(SettingsRes.string.about)
+                content(
+                    onAbout = { title ->
+                        about++
+                        aboutTitle = title
+                    })
+            }
             onNodeWithTag(SettingsListTestTag)
                 .performScrollToNode(hasTestTag(SettingsAboutTestTag))
             onNodeWithTag(SettingsAboutTestTag).performClick()
             assertEquals(1, about)
+            assertEquals(expectedAboutTitle, aboutTitle)
             var backLabel = ""
             setContent {
                 backLabel = stringResource(CoreUiRes.string.back)
@@ -1723,11 +1791,13 @@ private fun content(
     onRescan: (String) -> Unit = {},
     onRecover: (String) -> Unit = {},
     onRemove: (String) -> Unit = {},
-    onAbout: () -> Unit = {},
+    onAbout: (String) -> Unit = {},
     onReviewOnboarding: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
     onDismiss: () -> Unit = {},
+    showRouteHeader: Boolean = true,
+    topContentPadding: Dp = 0.dp,
 ): Unit =
     SettingsScreen(
         labels = labels(),
@@ -1776,6 +1846,8 @@ private fun content(
         onRequestNotificationPermission = onRequestNotificationPermission,
         onOpenNotificationSettings = onOpenNotificationSettings,
         onDismiss = onDismiss,
+        showRouteHeader = showRouteHeader,
+        topContentPadding = topContentPadding,
         listState = listState)
 
 private fun settingsAppearance(
