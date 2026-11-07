@@ -14,7 +14,8 @@ Verification:
 - `git diff --check`: pass (no output).
 - `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release -destination 'id=00008160-000814EE0CE00036' -derivedDataPath /tmp/rhythhaus-adaptive-eteroi-release-2 CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=YES build`: exit 0.
 - `xcrun devicectl device install app` and `xcrun devicectl device info apps --bundle-id com.eterocell.RhythHaus`: app installed and reported as RhythHaus 0.2.0 (000200).
-Next owner: integration — commit the approved worktree changes, fast-forward `main`, record final closeout, then remove `.worktrees/platform-adaptive-ui-redesign/` as requested.
+Commit: `3d9dfe09` (`feat(ui): complete platform-adaptive redesign`) on `feature/platform-adaptive-ui-redesign`; fast-forwarded local `main` to the same commit. No push.
+Next owner: none for the requested integration. Remove `.worktrees/platform-adaptive-ui-redesign/` and delete the merged local feature branch; leave the OpenSpec change unarchived.
 Blockers: system-picker runtime review remains unverified; user-reported review has no itemized device evidence in this handoff. The OpenSpec change remains unarchived.
 
 ## Handoff - 2026-11-04 adaptive UI baseline resumed; native Insets remain open
