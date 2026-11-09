@@ -1,3 +1,22 @@
+## Handoff - 2026-11-09 platform playback acceptance and adaptive redesign archival
+
+Route: user-directed acceptance record and OpenSpec archive
+Owner: documentation / acceptance closeout
+Input: user instruction to mark platform playback accepted, mark adaptive redesign archived, update acceptance records, and clean status documents.
+Output:
+- Recorded user-confirmed acceptance of platform playback/system behavior and the adaptive redesign's listed layout, localization, text-scale, reduced-motion, transition/input, accessibility, and appearance review items. This records the user's acceptance; no per-platform, per-scenario observations or screenshots were supplied.
+- Updated `roadmap.md`, `openspec/changes/platform-adaptive-ui-redesign/tasks.md`, and `openspec/changes/theme-selection/tasks.md` so current acceptance state is consistent. The roadmap now separates unverified physical system-picker interactions and Android notification-denial recovery acceptance from the accepted platform playback review.
+- Synced the three new adaptive capability specs to `openspec/specs/` and archived the completed change at `openspec/changes/archive/2026-11-09-platform-adaptive-ui-redesign/`.
+Verification:
+- Prior implementation evidence remains as recorded in the 2026-11-07 handoff: `./init.sh`, strict OpenSpec validation, quality/static checks, and affected JVM/iOS test suites passed before archival.
+- `openspec validate platform-adaptive-ui-redesign --strict`: valid before archival; the validator noted that the newly synchronized `adaptive-app-shell` delta's Tool routes requirement now exists in the canonical spec.
+- `openspec validate --specs`: 31 passed, 0 failed. Existing warnings were reported in unrelated specs; no failures.
+- OpenSpec inventory before archival confirmed 17/17 tasks and all artifacts complete. The dated archive destination was absent before the move.
+- This status/acceptance update did not rerun builds or device tests; rely only on the prior implementation evidence cited above.
+Commit: none.
+Next owner: none for adaptive redesign archival; Android notification-denial playback/system-control acceptance and physical system-picker interactions remain separate release checks.
+Blockers: none for the requested acceptance record and archive. Per-scenario/device evidence was not included in the user's confirmation.
+
 ## Handoff - 2026-11-07 adaptive UI user acceptance and release verification
 
 Route: openspec+superpowers / approved adaptive implementation, user-confirmed manual review, and requested local integration
