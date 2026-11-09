@@ -48,8 +48,8 @@ dependencies {
     implementation(libs.gradle.plugin.spotless)
     implementation(libs.gradle.plugin.kotlin)
     implementation(libs.gradle.plugin.compose.compiler)
-    implementation("org.jetbrains.compose:compose-gradle-plugin:1.12.1")
-    implementation("app.cash.sqldelight:gradle-plugin:2.4.1")
+    implementation(libs.gradle.plugin.compose.multiplatform)
+    implementation(libs.sqldelight.gradle.plugin)
 
     testImplementation(gradleTestKit())
     testImplementation(libs.junit)

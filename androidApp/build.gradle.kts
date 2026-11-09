@@ -1,6 +1,7 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import com.android.build.api.variant.HasUnitTestBuilder
 import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
 import com.eterocell.gradle.android.VerifyReleaseAabTask
 import com.eterocell.gradle.android.VerifyReleaseApksTask
@@ -102,11 +103,18 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 val androidExtension = extensions.getByType<ApplicationExtension>()
 val androidComponents =
     extensions.getByType<ApplicationAndroidComponentsExtension>()
+androidComponents.beforeVariants(androidComponents.selector().all()) {
+    variant ->
+    (variant as HasUnitTestBuilder).enableUnitTest = true
+}
 val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
 val resolvedAapt2 = androidSdkDirectory.map {
     resolveAapt2(it.asFile, androidExtension.buildToolsVersion)

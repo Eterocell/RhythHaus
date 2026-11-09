@@ -54,8 +54,7 @@ kotlin {
             implementation(libs.kotlin.test)
         }
         jvmTest.dependencies {
-            implementation(
-                "org.jetbrains.compose.ui:ui-test:${libs.versions.compose.multiplatform.get()}")
+            implementation(libs.compose.ui.test)
             implementation(compose.desktop.currentOs)
         }
     }

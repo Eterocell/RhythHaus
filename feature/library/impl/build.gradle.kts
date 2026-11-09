@@ -53,8 +53,7 @@ kotlin {
             implementation(libs.kotlinx.coroutinesCore)
         }
         jvmTest.dependencies {
-            implementation(
-                "org.jetbrains.compose.ui:ui-test:${libs.versions.compose.multiplatform.get()}")
+            implementation(libs.compose.ui.test)
             implementation(compose.desktop.currentOs)
             implementation(libs.sqldelight.sqlite.driver)
         }
