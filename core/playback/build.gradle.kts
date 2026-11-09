@@ -21,8 +21,8 @@ val macosAudioHelperSourceFile =
         .file("src/nativeInterop/macos/rhythhaus_audio.mm")
         .asFile
 val javaHomePath = providers.systemProperty("java.home").get()
-val buildMacosAudioHelper by
-    tasks.registering(Exec::class) {
+val buildMacosAudioHelper =
+    tasks.register("buildMacosAudioHelper", Exec::class) {
         inputs.file(macosAudioHelperSourceFile)
         outputs.file(macosAudioHelperOutputFile)
         macosAudioHelperOutputFile.parentFile.mkdirs()

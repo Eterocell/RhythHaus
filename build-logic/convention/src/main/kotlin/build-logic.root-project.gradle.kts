@@ -39,13 +39,12 @@ subprojects {
     }
 }
 
-val wrapper: Wrapper by
-    tasks.named<Wrapper>("wrapper") {
-        gradleVersion = "9.6.1"
-        distributionType = Wrapper.DistributionType.ALL
-        val sha256 =
-            URI.create("$distributionUrl.sha256").toURL().openStream().use {
-                it.reader().readText().trim()
-            }
-        distributionSha256Sum = sha256
-    }
+tasks.named<Wrapper>("wrapper") {
+    gradleVersion = "9.9.0"
+    distributionType = Wrapper.DistributionType.ALL
+    val sha256 =
+        URI.create("$distributionUrl.sha256").toURL().openStream().use {
+            it.reader().readText().trim()
+        }
+    distributionSha256Sum = sha256
+}

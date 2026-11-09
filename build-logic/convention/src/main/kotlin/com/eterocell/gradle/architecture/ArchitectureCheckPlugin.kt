@@ -8,6 +8,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.kotlin.dsl.register
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.ExplicitApiMode
 import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
@@ -134,6 +135,7 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
             .orEmpty()
     }
 
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     private fun iosExports(project: Project): List<String> {
         val kotlin = project.extensions.findByType(KotlinMultiplatformExtension::class.java) ?: return emptyList()
         return kotlin.targets.withType(KotlinNativeTarget::class.java).flatMap { target ->

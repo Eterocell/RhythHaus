@@ -38,8 +38,8 @@ val macosTagLibHelperBuiltFile =
     macosTagLibHelperBuildDirectory.resolve("librhythhaus_taglib.dylib")
 val javaHomePath = providers.systemProperty("java.home").get()
 
-val buildMacosTagLibHelper by
-    tasks.registering(Exec::class) {
+val buildMacosTagLibHelper =
+    tasks.register("buildMacosTagLibHelper", Exec::class) {
         inputs.dir(nativeTagLibDirectory)
         outputs.file(macosTagLibHelperOutputFile)
         macosTagLibHelperOutputFile.parentFile.mkdirs()
@@ -220,12 +220,12 @@ val androidNativeBuildTasks =
         }
         .toMap()
 
-val buildAllAndroidTagLibHelpers by tasks.registering {
+val buildAllAndroidTagLibHelpers = tasks.register("buildAllAndroidTagLibHelpers") {
     dependsOn(androidNativeBuildTasks.values)
 }
 
-val packageAndroidTagLibJniLibs by
-    tasks.registering(Sync::class) {
+val packageAndroidTagLibJniLibs =
+    tasks.register("packageAndroidTagLibJniLibs", Sync::class) {
         dependsOn(buildAllAndroidTagLibHelpers)
         from(androidTagLibOutputRoot)
         into(androidTagLibPackagedJniLibsRoot)
