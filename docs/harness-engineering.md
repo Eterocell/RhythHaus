@@ -31,6 +31,8 @@ Collaboration rule:
 - Superpowers or the implementation owner executes one OpenSpec task at a time.
 - The harness verifies, performs reviewer-level acceptance, records evidence, and hands back to OpenSpec for archival when appropriate.
 
+For delegated or multi-surface assignments, use the [implementation brief template](superpowers/templates/implementation-brief.md). At acceptance, use the [review checklist](superpowers/templates/acceptance-review.md) to trace criteria to evidence and keep unobserved GUI/device/audio checks explicitly unverified. OpenSpec and `progress.md` remain authoritative; these templates do not track task status.
+
 ## Five harness subsystems
 
 ### 1. Instructions

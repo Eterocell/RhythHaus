@@ -113,6 +113,8 @@ Do not create `feature_list.json` for tasks already represented in OpenSpec. If 
 
 Handoff rule: Superpowers may produce clarified design input; OpenSpec consumes that input and creates/updates change specs/tasks; Superpowers or the implementation owner consumes one OpenSpec task; the harness verifies, performs code-review-grade acceptance, records evidence, and hands back to OpenSpec for archival when appropriate.
 
+For delegated or multi-surface implementation assignments, use [`docs/superpowers/templates/implementation-brief.md`](docs/superpowers/templates/implementation-brief.md) to make owned surfaces, scope boundaries, acceptance, verification, and adjacent owners explicit. At acceptance, use [`docs/superpowers/templates/acceptance-review.md`](docs/superpowers/templates/acceptance-review.md) to map criteria to evidence; OpenSpec and `progress.md` remain the status and handoff sources of truth.
+
 ## Scope and safety rules
 
 - User instructions override this file.
