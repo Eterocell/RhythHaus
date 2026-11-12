@@ -1,10 +1,20 @@
 ## Current handoff index
 
-- Current implementation: Shared App decomposition in the isolated Orca worktree `Eterocell/shared-app-orchestration-decomposition`; automated matrix and final review green; native AX smoke explicitly deferred by the user (see latest handoff).
+- Current implementation: Shared App decomposition merged into local `main` at `f25a08d9`; merged-main `./init.sh` passed; native AX smoke remains explicitly deferred by the user (see latest handoff).
 
 - Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
 - Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
 - The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
+
+## Handoff - 2026-11-12 Shared App decomposition merged to main
+
+Route: user-directed local integration
+Owner: harness
+Input: merge back to main.
+Output: fast-forwarded clean local `main` from `70727e60` to `f25a08d9` (`refactor(shared): split app orchestration`); no merge conflict, push, or archive.
+Verification: `./init.sh` on the merged main checkout completed all stages successfully: Shared JVM tests, desktop compilation, Android debug assembly, Xcode version check, and Shared iOS simulator tests. XML results: 567 JVM tests and 339 iOS simulator tests, zero failures/errors/skips. Kotlin/Native cache-object and Gradle deprecation warnings were emitted; verification still returned success.
+Next owner: resume OpenSpec task 7.3 when native AX access is available; user-authorized smoke deferral remains unchanged and the change stays unarchived.
+Blockers: native screenshot/AX/interaction acceptance remains unverified. The Orca-managed source worktree is preserved; no unrelated worktree, branch, or recovery stash was removed.
 
 ## Handoff - 2026-11-12 project review documentation follow-through
 
