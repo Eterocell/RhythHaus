@@ -1,35 +1,42 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Desktop (JVM).
+# RhythHaus
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+RhythHaus is a local-first music player for Android, iOS, and macOS/desktop JVM. It scans and plays local audio, manages playlists, and keeps playback and library data on-device. Windows and Linux are not currently supported targets.
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+## Project layout
 
-### Running the apps
+| Area | Responsibility |
+| --- | --- |
+| `androidApp`, `iosApp`, `desktopApp` | Thin platform entry points and packaging. |
+| `shared` | App composition, cross-feature shell/navigation, lifecycle, and iOS framework facade. |
+| `core/model`, `core/ui`, `core/platform`, `core/playback`, `core/database` | Cross-feature models, shared UI/theme, platform contracts, playback, and physical database ownership. |
+| `feature/library`, `feature/playlists`, `feature/search`, `feature/nowplaying`, `feature/settings`, `feature/onboarding` | Feature contracts and implementations, owned by their respective modules. |
+| `taglib`, `architecture-processor`, `build-logic` | Audio metadata support, architecture verification, and shared Gradle conventions. |
+| `openspec` | Durable product/architecture requirements and active change tasks. |
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+See [architecture guidance](docs/architecture.md) and [ADRs](docs/adr/) for module ownership and dependency rules.
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- Desktop app:
-  - Hot reload: `./gradlew :desktopApp:hotRun --auto`
-  - Standard run: `./gradlew :desktopApp:run`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+## Run the apps
 
-### Running tests
+- Android: open the project in Android Studio or assemble a debug APK with `./gradlew :androidApp:assembleDebug`.
+- Desktop: `./gradlew :desktopApp:run`.
+- iOS: open [`iosApp`](iosApp/) in Xcode and run the `iosApp` scheme.
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+## Verify changes
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- Desktop tests: `./gradlew :shared:jvmTest`
-- iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
+The repository's first-platform verification entry point is:
 
----
+```bash
+./init.sh
+```
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com.cn/en-us/help/kotlin-multiplatform-dev/get-started.html)…
+It runs the Shared JVM tests, desktop compilation, Android debug assembly, Xcode version check, and Shared iOS Simulator tests. For focused work, run the owning module's test task plus the affected app compile/build task. Examples:
+
+```bash
+./gradlew :shared:jvmTest --configuration-cache
+./gradlew :feature:library:impl:jvmTest --configuration-cache
+./gradlew :desktopApp:compileKotlin --configuration-cache
+./gradlew :androidApp:assembleDebug --configuration-cache
+./gradlew :shared:iosSimulatorArm64Test --configuration-cache
+```
+
+A successful compile or automated test does not establish user-only device, picker, accessibility, system-media, or audible-playback acceptance. Current priorities and exact outstanding release evidence are in [`roadmap.md`](roadmap.md); workflow and handoff requirements are in [`AGENTS.md`](AGENTS.md) and [`docs/harness-engineering.md`](docs/harness-engineering.md).

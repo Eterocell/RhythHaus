@@ -220,9 +220,10 @@ val androidNativeBuildTasks =
         }
         .toMap()
 
-val buildAllAndroidTagLibHelpers = tasks.register("buildAllAndroidTagLibHelpers") {
-    dependsOn(androidNativeBuildTasks.values)
-}
+val buildAllAndroidTagLibHelpers =
+    tasks.register("buildAllAndroidTagLibHelpers") {
+        dependsOn(androidNativeBuildTasks.values)
+    }
 
 val packageAndroidTagLibJniLibs =
     tasks.register("packageAndroidTagLibJniLibs", Sync::class) {

@@ -1,3 +1,5 @@
+> **Superseded — 2026-11-12.** Do not implement this design. See the status and rationale in [`proposal.md`](proposal.md); Shared's current route/Back ownership and the `miuix-nav:0.9.4-rc01` no-go decision remain authoritative.
+
 ## Context
 
 See `proposal.md` for motivation. RhythHaus currently keeps `LibraryNavigationStack` and `LibraryAppState` as the application presentation authority. Shared resolves Back precedence across feature modal/edit targets, selection, expanded Now Playing, and routes; feature implementations publish destination-scoped dismissal ports. The current navigation renderer and platform bridges therefore depend on Shared’s custom Back session/latching/settlement behavior.

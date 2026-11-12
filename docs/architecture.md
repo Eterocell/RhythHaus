@@ -605,3 +605,36 @@ asserts this exact source-file set. The unused `Logger` Kermit singleton and the
 `Platform`/`getPlatform` expect-actual family are removed without any bridge dependency.
 A real-structure-only scaffold generates a requested feature-module skeleton. Package
 renames and Dependency Analysis Gradle Plugin evaluation remain deferred.
+
+#### Retained additions after the original inventory
+
+The App entry is decomposed without a new module or ownership boundary:
+`App.kt` constructs explicit internal service groups; `AppLibraryContentHost`
+collects app projections and binds the shell; `AppLibraryOperationsHost` retains
+composition-lifetime scan/source workflows using the existing admission coordinator;
+`AppLibraryOperations` holds operation/reconciliation helpers;
+`AppLibraryPublication` owns the unchanged authoritative revision model and publication
+adapters; `AppPlaylistBackupHost` binds the existing feature controller to document
+callbacks; `AppOnboardingGate` retains the preference-driven entry gate; and
+`theme/RhythHausTheme.kt` contains the single theme boundary under its original Kotlin
+package. No service group is a public API or service locator. `AppProcessState` keeps
+process lifetime; these hosts do not start another process owner or Back arbiter.
+
+The exact-file inventory includes the following later app-owned additions and their
+Android/JVM/iOS actuals where present. It must not infer approval from a directory
+prefix or automatically include every current file. The September inventory predates
+these accepted changes; reconciling it does not migrate feature implementation back
+into Shared.
+
+| Shared file family | Retained responsibility and authority |
+| --- | --- |
+| `AppLibraryOrchestrator`, `LibraryOperationCoordinator`, `AppProcessState`, `AppMetadataOverride` | Cross-feature operation admission, authoritative publication, process startup/history and metadata publication; the Library implementation boundary above and the CarPlay/process integration retain these app-level owners. Scanner/repository implementations remain Library-owned. |
+| `AppNavigationChrome`, `AppShellHeader`, `AppShellLayout`, `AppShellWindowInsets`, `NowPlayingPanelPresentation`, `AppSystemBarAppearance` | Root navigation chrome, safe rectangle, foreground/player placement and system-bar appearance; [`adaptive-app-shell`](../openspec/specs/adaptive-app-shell/spec.md) and [`now-playing-dismissal`](../openspec/specs/now-playing-dismissal/spec.md). |
+| `DesktopDropTargetPresentation` | Immutable shell drag feedback only; validation and native drop conversion remain Library-owned ([desktop drop design](../openspec/changes/archive/2026-10-08-desktop-drag-drop/design.md)). |
+| `PlatformFolderPicker`, Android/JVM `PlatformFolderPickerFacade`, iOS picker/import facade, `IOSLibraryImport`, `DefaultLibrarySource` | App-facing launcher delegation, narrow Swift provider/result ABI and app-startup managed-source policy; no Android/JVM picker implementation or scanner moves back ([iOS import design](../openspec/changes/archive/2026-09-09-ios-files-import/design.md)). Common import planning helpers remain with this existing adapter contract; native enumeration/copy remains Swift-owned. |
+| `MediaStoreAudioPermission`, `MediaStoreSourceRegistration` | Neutral permission/recovery callback contract and coordinator-admitted explicit source registration, not ContentResolver discovery ([MediaStore design](../openspec/changes/archive/2026-10-03-android-mediastore/design.md)). |
+| `OnboardingPlatform`, `OnboardingPreferenceStore` | App-entry platform guidance and schema completion persistence; feature Onboarding owns leaf UI ([onboarding design](../openspec/changes/archive/2026-09-12-first-run-onboarding/design.md)). |
+| `ReplayGainPreferenceOwner`, `ReplayGainPreferenceStore` | Process preference persistence/application; gain computation and engine behavior remain Core Playback-owned ([ReplayGain design](../openspec/changes/archive/2026-10-09-replaygain-normalization/design.md)). |
+| `CrossfadePreferenceOwner`, `CrossfadePreferenceStore`, `GaplessPreferenceOwner`, `GaplessPreferenceStore` | Process preference restoration/write publication and Settings projection, not transition engines ([crossfade design](../openspec/changes/archive/2026-10-12-crossfade-playback/design.md), [gapless design](../openspec/changes/archive/2026-10-12-gapless-playback/design.md)). |
+| `AutomaticResumePolicy`, `AutomaticResumePreferenceOwner`, `AutomaticResumePreferenceStore` | App-level persisted resume policy with native enforcement ([output/session design](../openspec/changes/archive/2026-10-13-output-session-settings/design.md)). |
+| `ThemePreferenceOwner`, `PlatformDynamicColor` | Serialized appearance writes and platform color projection; the appearance boundary above and ADR 0001 retain these in Shared. |

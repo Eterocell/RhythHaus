@@ -8,6 +8,8 @@
 
 ## Current focus — Phase 1: release closure and first-run usability
 
+Engineering follow-through (2026-11-12): Shared-only App orchestration decomposition is implemented and independently reviewed with no blocking findings. Publication, operation, document, onboarding and theme responsibilities have focused internal hosts; Shared remains the sole composition/Back/process owner. Focused regressions, `./init.sh`, exact Shared inventory, architecture, quality and strict OpenSpec gates pass. The user authorized committing this verified work while explicitly deferring native desktop screenshot/AX interaction acceptance, blocked by Orca's `permission_denied` response for the visible isolated JVM window. The change remains unarchived with only that smoke task open in [`shared-app-orchestration-decomposition`](openspec/changes/shared-app-orchestration-decomposition/tasks.md).
+
 | Priority | Outcome | Status | Next evidence or change |
 | --- | --- | --- | --- |
 | P0 | iOS Files.app import | Completed: Files.app file/directory import, recursion, cancellation, duplicate handling, durable sandbox playback, default `Documents/RhythHaus` source, and scan-only handling of files already under that source. | Archived as [`2026-09-09-ios-files-import`](openspec/changes/archive/2026-09-09-ios-files-import/); no further Phase 1 work remains in this change. |
@@ -17,15 +19,27 @@
 | P1 | First-run onboarding | Completed: durable one-time Skip/Finish flow, platform-accurate EN/ZH guidance, canonical Back/navigation, compact scrolling, and Settings re-entry. | Archived as [`2026-09-12-first-run-onboarding`](openspec/changes/archive/2026-09-12-first-run-onboarding/); Android/iOS device presentation remains release evidence rather than an implementation blocker. |
 | P1 | Favorites | Completed: durable track favorites, authoritative cross-surface state, Favorites browsing, accessible Library/Now Playing actions, and EN/ZH localization. | Archived as [`2026-09-23-favorites`](openspec/changes/archive/2026-09-23-favorites/); physical Android/iOS and system-media acceptance remains general release evidence, not a Favorites implementation blocker. |
 
+### Remaining release evidence
+
+These are user-operated or distribution gates, not claims of implementation failure. The separate three-platform playback acceptance remains user-confirmed as reported on 2026-11-09; no per-device/per-scenario evidence was supplied, so do not describe it as independently reproduced by engineering.
+
+| Gate | Required evidence | Status / owner |
+| --- | --- | --- |
+| Android notification denial | On Android 13+, verify in-app playback remains available while notifications are denied, then restore permission and verify system media controls recover. | Pending user device acceptance; [`android-notification-permission-recovery` task 3.2](openspec/changes/android-notification-permission-recovery/tasks.md). |
+| CarPlay | Exercise connect, browse, select, Now Playing, external controls, disconnect/reconnect, and loading/empty states on an interactive CarPlay display; authorize the managed entitlement/profile before device distribution. | Pending; [`carplay-audio-integration` task 4.2](openspec/changes/carplay-audio-integration/tasks.md) remains open. |
+| Playback failure recovery | Exercise native failure/retry/recovery on Android and iOS. | Android device and iOS runtime evidence remains pending; macOS disposable-file recovery is automated ([archived change](openspec/changes/archive/2026-09-10-playback-failure-recovery/)). |
+| Native system-picker interactions | Verify remaining system-picker interactions in adaptive and playlist flows, separately from the completed iOS Files.app import path. | Pending user-operated acceptance; the 2026-11-09 adaptive acceptance explicitly excluded physical system-picker interactions. |
+| Desktop drag-and-drop | Verify Finder drop, restart, and playback on the native desktop surface. | Pending user-operated acceptance; implementation is recorded under [`desktop-drag-drop`](openspec/changes/archive/2026-10-08-desktop-drag-drop/). |
+
 ### C platform-adaptive full visual redesign — accepted and archived
 
 The implementation is integrated into local `main` as `3d9dfe09` (`feat(ui): complete platform-adaptive redesign`). The user confirmed acceptance of the listed adaptive layout/state, localization, text-scale, reduced-motion, transition/input, accessibility, appearance, and platform playback/system-behavior review items on 2026-11-09. This is user-reported acceptance; per-device and per-scenario observations were not supplied. The adaptive OpenSpec change is archived at [`2026-11-09-platform-adaptive-ui-redesign`](openspec/changes/archive/2026-11-09-platform-adaptive-ui-redesign/); its three new capability specs are synchronized under `openspec/specs/`.
 
 Physical system-picker interactions were not included in the accepted checklist and remain unverified. Android notification-denial playback/system-control acceptance also remains a separate release check. The previously recorded automated evidence is in `progress.md`; the last recorded `./init.sh`, strict OpenSpec validation, quality checks, and affected JVM/iOS suites passed before this archival update. No new build or device run was performed for this status update.
 
-### Studio UI redesign — implemented work integrated; manual acceptance postponed
+### Studio UI redesign — implementation integrated; manual acceptance postponed
 
-Fresh integration review (2026-10-26): both independent reviews are complete; three P2 findings remain open—track replacement may discard a queue-save naming/clear session, remove-missing confirmation buttons have fixed 36dp heights below the approved minimum, and row menus lack an explicit desktop selection alternative. No P0/P1 was reported. These are unresolved engineering findings, not manual-acceptance postponements. The user-directed commit/merge does not mark the redesign accepted; OpenSpec 8.3 remains open.
+The 2026-10-26 integration review recorded three P2 findings. All three were subsequently resolved and independently reviewed in [`studio-ui-review-remediation`](openspec/changes/archive/2026-10-28-studio-ui-review-remediation/): Queue save lifetime, accessible row actions, and confirmation target sizing. The original Studio redesign remains open only for postponed manual/mixed acceptance tasks; do not reopen those resolved engineering findings.
 
 User decision (2026-10-26): all manual verification and acceptance is postponed, including acceptance inferred from earlier limited runtime smoke. Historical observations remain narrow factual evidence, not acceptance or a pass. The full visual/interaction matrix, keyboard/screen-reader, reduced-motion, large-text, system-picker, audible playback, route-loss, and system-media acceptance remains unverified and in scope. Keep manual/mixed OpenSpec items open; postponement does not close acceptance or authorize archival.
 
@@ -59,6 +73,8 @@ Implementation committed as `dff74b35`; completed remediation archived under `op
 ### Explicitly abandoned work
 
 `adopt-miuix-navigation-runtime` is archived at [`openspec/changes/archive/2026-09-09-adopt-miuix-navigation-runtime/`](openspec/changes/archive/2026-09-09-adopt-miuix-navigation-runtime/). Do not revive its conditional tasks unless upstream exposes a compatible Back-delegation API and JVM-target-compatible presentation API.
+
+The active [`replace-shared-back-with-miuix-nav`](openspec/changes/replace-shared-back-with-miuix-nav/proposal.md) proposal is superseded and must not be executed or synced. Its Miuix `NavDisplay` migration conflicts with the current Shared Back-arbitration contract and the documented runtime no-go; its 19 unchecked tasks are intentionally abandoned, not active backlog.
 
 ## Next product phases
 
@@ -103,7 +119,7 @@ RhythHaus already provides:
 | --- | --- |
 | Real playback-system acceptance | Treat device/system controls as release evidence. Compilation and unit tests do not prove Bluetooth/wired controls, lock-screen/notification surfaces, route loss, interruptions, or background continuation. |
 | Android notification denial | Implemented; Android 13+ physical playback-under-denial and restored media-control acceptance remain open. |
-| Source and file lifecycle | Specify user-facing recovery for deleted/moved files, unavailable disks, revoked SAF grants, and source re-binding. |
+| Source and file lifecycle | Source re-binding, lost-access recovery, and platform recovery selection are implemented and archived in [`source-lifecycle-recovery`](openspec/changes/archive/2026-10-14-source-lifecycle-recovery/). Keep only the narrower product question of per-track moved/renamed-file recovery open; do not re-plan source re-binding or revoked SAF-grant recovery as missing work. |
 
 ### P1 — library and workflow
 

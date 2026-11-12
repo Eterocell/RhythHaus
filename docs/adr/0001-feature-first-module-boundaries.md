@@ -425,3 +425,15 @@ shared formatting helpers. A thin-shared inventory test asserts this exact sourc
 unused `Logger` Kermit singleton and unused `Platform`/`getPlatform` expect-actual family are removed
 without a bridge. A real-structure-only scaffold generates a requested feature-module skeleton;
 package renames and Dependency Analysis Gradle Plugin evaluation remain deferred.
+
+### App Orchestration Decomposition
+
+The 2026-11-12 Shared-only decomposition preserves this boundary. `App()` performs
+explicit dependency construction and passes internal library/playback/preference/platform
+groups to `AppLibraryContentHost`; child hosts do not resolve Koin. Publication,
+scan/source-operation workflows, playlist document hosting, onboarding gating and theme
+application live in focused Shared files while the existing process, coordinator,
+publication, feature-state and Back owners remain authoritative. See the ownership table
+under `docs/architecture.md`'s Thin Shared Role for later app-level preference/platform
+additions omitted by the original inventory. The inventory remains a literal exact-file
+set, not directory-level permission for new feature implementation in Shared.

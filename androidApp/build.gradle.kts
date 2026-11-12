@@ -111,10 +111,12 @@ android {
 val androidExtension = extensions.getByType<ApplicationExtension>()
 val androidComponents =
     extensions.getByType<ApplicationAndroidComponentsExtension>()
-androidComponents.beforeVariants(androidComponents.selector().all()) {
-    variant ->
+
+androidComponents.beforeVariants(androidComponents.selector().all()) { variant
+    ->
     (variant as HasUnitTestBuilder).enableUnitTest = true
 }
+
 val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
 val resolvedAapt2 = androidSdkDirectory.map {
     resolveAapt2(it.asFile, androidExtension.buildToolsVersion)

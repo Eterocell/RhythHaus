@@ -1,3 +1,5 @@
+> **Superseded — 2026-11-12.** Do not implement this change or sync its delta specs. The current production contract keeps route and Back arbitration in Shared (`docs/architecture.md`, `docs/adr/0001-feature-first-module-boundaries.md`). The reviewed `miuix-nav:0.9.4-rc01` `NavDisplay` cannot satisfy that contract because it installs predictive Back without a public opt-out/delegation hook; see [`2026-09-03-miuix-navigation-runtime-design.md`](../../../docs/superpowers/specs/2026-09-03-miuix-navigation-runtime-design.md). The 19 unchecked tasks remain unchecked to record abandoned work, not incomplete active work.
+
 ## Why
 
 RhythHaus’s current Shared Back arbiter resolves modal, edit, selection, Now Playing, and route precedence with a custom predictive-Back state machine. `miuix-nav:0.9.4-rc01` now provides the continuous-depth navigation, predictive Back, popup-animation interruption, and swipe-to-dismiss behavior needed to make one canonical navigation stack own those presentation layers instead of maintaining a second gesture/settlement engine.

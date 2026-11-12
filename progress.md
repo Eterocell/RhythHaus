@@ -1,3 +1,42 @@
+## Current handoff index
+
+- Current implementation: Shared App decomposition in the isolated Orca worktree `Eterocell/shared-app-orchestration-decomposition`; automated matrix and final review green; native AX smoke explicitly deferred by the user (see latest handoff).
+
+- Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
+- Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
+- The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
+
+## Handoff - 2026-11-12 project review documentation follow-through
+
+Route: read-only project review followed by documentation/OpenSpec status corrections
+Owner: harness
+Input: user direction to carry out the review recommendations in order.
+Output:
+- Marked `replace-shared-back-with-miuix-nav` as superseded in its proposal, design, and task entry; left all 19 tasks unchecked and did not sync its rejected deltas.
+- Corrected the roadmap's completed Studio review-remediation and source-recovery status, and added a concise ledger for remaining user-operated release evidence.
+- Replaced the starter README with current module/run/verification guidance and added a handoff index above the historical progress log.
+- Drafted and received user approval for the Shared-only App decomposition design and executable plan. `shared-app-orchestration-decomposition` skips capability deltas for this behavior-preserving refactor; implementation is proceeding in the isolated Orca worktree `Eterocell/shared-app-orchestration-decomposition`.
+- No production code changed. The July architecture-refactor plan is complete and is not a substitute for approving this follow-up design and its later executable plan.
+Verification:
+- `openspec validate replace-shared-back-with-miuix-nav --strict`: valid after removing prose from above delta-spec sections.
+- `openspec status --change shared-app-orchestration-decomposition --json`: proposal, design, and task artifacts present; specs skipped; all implementation checkboxes remain unchecked.
+- `openspec validate shared-app-orchestration-decomposition --strict`: valid; `skip_specs: true` is intentional for the behavior-preserving refactor.
+- `git diff --check`: passed after all documentation and plan artifacts were written.
+- Documentation/planning checks above did not run builds or tests; subsequent implementation-baseline runs are recorded separately below. No GUI, device, or audio acceptance was run.
+Implementation evidence (isolated worktree):
+- Exact `ThinSharedInventoryTest` command failed before production edits: 1 test, 1 failure, 61 pre-existing source files outside its approved set (30 commonMain, 10 androidMain, 11 iosMain, 10 jvmMain). Inventory last changed at `a0275c19` (2026-09-09); later Shared composition additions include `3d9dfe09` (2026-11-07). No allow-list was expanded.
+- The six-class focused Shared JVM baseline passed independently: 111 tests, 0 failures/errors/skips. Exact command and full inventory failure references are recorded in the isolated worktree's `.superpowers/sdd/2026-11-12-shared-app-orchestration-decomposition/progress.md`.
+- User authorized ownership audit/reconciliation; later app-facade, shell, iOS-import and preference designs justified the 61 retained files. Repaired the literal inventory, proved a temporary unapproved file fails the guard, removed that file, and reran the exact inventory/behavior gates green.
+- Extracted publication, source operations/workflow host, playlist document host, onboarding gate, theme boundary, and content composition. `App()` now constructs explicit service groups; no dependency/public entry/feature ownership changed.
+- Tasks 1–6 completed through `executing-plans` task-start/task-done with focused regressions. `./init.sh` passed JVM tests, desktop compile, Android debug assembly, Xcode check and iOS simulator tests. XML reports: 567 Shared JVM tests and 339 iOS tests, zero failures/errors/skips.
+- `qualityCheck` passed after correcting only pre-existing Gradle whitespace in `androidApp/build.gradle.kts` and `taglib/build.gradle.kts`; strict change validation and diff hygiene passed. No toolchain/dependency change.
+- Isolated desktop launch asserted both HOME and JVM user.home in a fresh random empty directory. Orca found the 800×600 window but AX reads by PID and exact window returned `permission_denied` despite granted permissions. No system permissions or personal media were touched; process stopped. No screenshot/tree/interaction acceptance claimed.
+Final review: fresh `ReviewAppDecomposition` comparison found no blocking (P0–P2) defects; two nonblocking minors remain (unused Compose delegate imports and an already-dead private terminalAfterFailure helper). Cross-file onboarding helper visibility and reactive-versus-invocation-time mutation checks are intentional.
+User decision: explicitly defer the unavailable native smoke, authorize the verified implementation commit after review, and leave the OpenSpec change unarchived. No native interaction acceptance is inferred.
+Rulings: audited baseline inventory reconciliation was brought forward from Task 6; private cancellation projection moved with its sole consumer; an operations workflow host was added to avoid a renamed giant composable; only formatter-requested Gradle whitespace outside Shared was repaired. Existing source-of-truth owners and packages remain unchanged. Review-suggested private onboarding visibility was declined because the content host calls across files; two gate observation points remain intentional. Review documentation and the formatter repairs are part of the authorized follow-through commit.
+Next owner: resume OpenSpec 7.3 when native AX window access is available; no archive until its actual screenshot/tree/interaction evidence exists.
+Blockers: native AX surface unavailable; only OpenSpec 7.3 remains open after the explicitly authorized commit.
+
 ## Handoff - 2026-11-09 platform playback acceptance and adaptive redesign archival
 
 Route: user-directed acceptance record and OpenSpec archive

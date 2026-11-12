@@ -1,3 +1,5 @@
+> **Superseded — 2026-11-12.** Do not execute these tasks. Their unchecked state is intentional: this proposal was rejected, not partially implemented. See [`proposal.md`](proposal.md) and the no-go analysis in [`2026-09-03-miuix-navigation-runtime-design.md`](../../../docs/superpowers/specs/2026-09-03-miuix-navigation-runtime-design.md).
+
 ## 1. Characterization and dependency boundary
 
 - [ ] 1.1 Capture the current route, modal, editor, selection, Now Playing, dialog, invalidation, predictive-cancel, predictive-commit, and compact/wide Back behavior in `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt`, `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistBackPolicyJvmTest.kt`, `feature/playlists/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistFeatureDismissalTest.kt`, and the relevant Shared route-adapter tests; verify the characterization suite passes before migration.
