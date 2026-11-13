@@ -1,0 +1,3 @@
+advisors:
+  - name: default
+    model: magpie/auto/deepseek-flash:max
