@@ -1,3 +1,5 @@
+> **Superseded — 2026-11-12.** The checked tasks below are historical implementation evidence. The remaining device-visual notes concern a Library top bar that is no longer rendered and are not active acceptance tasks. Do not resume, expand, or sync this change.
+
 # Miuix Nested-Scroll TopAppBar Tasks
 
 - [x] 1. Extend `RhythHausTopAppBar` for glass-backed nested-scroll usage.

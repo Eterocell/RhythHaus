@@ -1,5 +1,7 @@
 # Design: Miuix Nested-Scroll TopAppBar
 
+> **Superseded — 2026-11-12.** This design describes a removed Library overlay and Miuix scroll-collapsing top bar. Current Library home/detail UI has no nested-scroll top-bar chrome. Its old visual-QA notes are historical, not pending acceptance. Do not use this design to restore the overlay or sync its delta.
+
 ## Context
 
 `NestedScrollBlurChrome` is the shared Library top overlay used by `LibraryHomeContent` and `DrillDownView`. It currently owns two separate concerns:

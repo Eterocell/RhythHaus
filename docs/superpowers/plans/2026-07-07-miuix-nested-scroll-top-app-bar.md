@@ -1,5 +1,7 @@
 # Miuix Nested-Scroll TopAppBar Implementation Plan
 
+> **Superseded — 2026-11-12.** Historical plan only. The Library nested-scroll top bar described below is absent from current Library home/detail UI. Do not execute this plan or restore the overlay; see [`library-home-settings-spacing`](../../../openspec/changes/library-home-settings-spacing/proposal.md) and the superseded [OpenSpec proposal](../../../openspec/changes/miuix-nested-scroll-top-app-bar/proposal.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Render Library nested-scroll top chrome with Miuix app bars. The drill-down track-list correction adopts Miuix `MiuixScrollBehavior` and Miuix `TopAppBar` large-title/collapsed-title behavior while preserving RhythHaus glass/backdrop and surrounding Library behavior.

@@ -6,6 +6,23 @@
 - Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
 - The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
 
+## Handoff - 2026-11-12 documentation status reconciliation
+
+Route: documentation-only correction
+Owner: implementation
+Input: user-requested fixes for review findings 2, 3, and 4.
+Output:
+- Marked the abandoned Haze/blur and Miuix nested-scroll overlay records and linked design artifacts superseded. The Library-home overlay was removed by `library-home-settings-spacing`; current Library home/detail content no longer renders nested-scroll top-bar chrome. Historical task checkboxes remain unchanged; no delta was synced or archived.
+- Updated the advanced-playback roadmap row to state Gapless is integrated into `main`, while retaining user-owned audible/device acceptance as pending.
+- Added explicit remaining release-evidence rows for per-platform foreground/system-media transport, Android accessories, Android/iOS artwork slices, and playlist dialog visual QA. The broad user-confirmed playback acceptance remains attributed as user-reported, not independently reproduced.
+Verification:
+- `openspec validate nested-scroll-blur --strict`: pass (`Change 'nested-scroll-blur' is valid`).
+- `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`). Both changes remain unarchived and their delta specs were not synced.
+- `git diff --check`: pass (no output, exit 0).
+- No build, test, GUI, device, or listening acceptance was run; this change only reconciles documentation.
+Next owner: review the documented pending user/device evidence when those scenarios are available.
+Blockers: none for the documentation correction.
+
 ## Handoff - 2026-11-12 Shared App decomposition merged to main
 
 Route: user-directed local integration

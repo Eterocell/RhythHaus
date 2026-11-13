@@ -1,5 +1,7 @@
 # Design: Nested Scroll Blur
 
+> **Superseded — 2026-11-12.** This design records an abandoned Haze/blur treatment. The temporary plain scrim and the later Library-home overlay were also removed; current Library home/detail screens have no nested-scroll top-bar chrome. Do not use this design to reintroduce blur, scrim, or an overlay.
+
 ## Summary
 
 The change adds a common Compose scroll chrome layer to pages with `LazyColumn` content. The layer is rendered above the list and becomes stronger as content scrolls underneath it.

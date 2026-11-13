@@ -1,5 +1,7 @@
 # Miuix Nested-Scroll TopAppBar Migration Design
 
+> **Superseded — 2026-11-12.** This historical design describes Library nested-scroll chrome removed from the current UI. Its implementation and visual-QA instructions are not active; do not use it to restore the overlay. See [`library-home-settings-spacing`](../../../openspec/changes/library-home-settings-spacing/proposal.md) for the home-overlay removal and the superseded OpenSpec record at [`miuix-nested-scroll-top-app-bar`](../../../openspec/changes/miuix-nested-scroll-top-app-bar/proposal.md).
+
 ## Purpose
 
 Migrate Library nested-scroll top chrome toward Miuix app-bar behavior. The final drill-down track-list correction adopts Miuix `MiuixScrollBehavior` and Miuix `TopAppBar` large-title/collapsed-title behavior, while preserving RhythHaus' existing glass/backdrop shell.
