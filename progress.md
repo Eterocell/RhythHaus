@@ -1,10 +1,20 @@
 ## Current handoff index
 
-- Current implementation: Shared App decomposition merged into local `main` at `f25a08d9`; merged-main `./init.sh` passed; native AX smoke remains explicitly deferred by the user (see latest handoff).
+- Current implementation: Shared App decomposition merged into local `main` at `f25a08d9`; merged-main `./init.sh` passed; desktop AX smoke task 7.3 was removed from scope by the user and is not planned (see latest handoff).
 
 - Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
 - Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
 - The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
+
+## Handoff - 2026-11-13 Shared App decomposition task disposition
+
+Route: user-directed OpenSpec status update
+Owner: harness
+Input: user direction to make task 7.3 not planned and ignore it.
+Output: Marked OpenSpec task 7.3 not planned; no screenshot, accessibility hierarchy, or interaction acceptance is claimed. The prior AX `permission_denied` observation remains historical evidence. The change remains unarchived.
+Verification: Inspected the task and current handoff text before editing. No build or test was run; this is a documentation/status-only update.
+Next owner: none for task 7.3. OpenSpec archival remains separate.
+Blockers: none for the requested status update.
 
 ## Handoff - 2026-11-12 documentation status reconciliation
 
