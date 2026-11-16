@@ -8,6 +8,8 @@
 
 ## Current focus — Phase 1: release closure and first-run usability
 
+Search artwork follow-up (2026-11-17): supplied embedded covers now render in Search rows with neutral fallback for missing or undecodable bytes. Search's 24 JVM tests, desktop compilation and strict OpenSpec validation pass in isolated `fix/search-result-artwork`; independent review found no blocking defects. A tag-retaining note-only negative control demonstrates the pixel regression catches the original behavior. The user authorized committing, main integration and worktree removal; the deferred Studio visual/device matrix is unchanged.
+
 Engineering follow-through (2026-11-12): Shared-only App orchestration decomposition is integrated into local `main` at `f25a08d9` and independently reviewed with no blocking findings. Publication, operation, document, onboarding and theme responsibilities have focused internal hosts; Shared remains the sole composition/Back/process owner. Focused regressions, merged-main `./init.sh`, exact Shared inventory, architecture, quality and strict OpenSpec gates pass. The user authorized committing and merging this verified work while explicitly deferring native desktop screenshot/AX interaction acceptance, blocked by Orca's `permission_denied` response for the visible isolated JVM window. The change remains unarchived with only that smoke task open in [`shared-app-orchestration-decomposition`](openspec/changes/shared-app-orchestration-decomposition/tasks.md).
 
 | Priority | Outcome | Status | Next evidence or change |

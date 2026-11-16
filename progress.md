@@ -6,6 +6,24 @@
 - Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
 - The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
 
+## Handoff - 2026-11-17 Search result artwork correction
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Search artwork design and plan dated 2026-11-16; user-selected subagent-driven execution.
+Output: Search renders supplied embedded artwork through the existing Core UI thumbnail renderer and preserves the neutral-note fallback. No Search API, lazy-loader, dependency, repository, or platform changes. Work is isolated in `.worktrees/search-result-artwork` on `fix/search-result-artwork`; the source checkout is not integrated.
+Verification:
+- Focused artwork/fallback regressions: 2 passed; `/tmp/search-green.log`, `BUILD SUCCESSFUL in 3s`.
+- Complete `:feature:search:jvmTest --configuration-cache --console=plain`: 24 tests, zero failures/errors; `/tmp/search-full.log`, `BUILD SUCCESSFUL in 6s`.
+- `:desktopApp:compileKotlin --configuration-cache --console=plain`: passed; `/tmp/desktop-compile.log`, `BUILD SUCCESSFUL in 15s`.
+- Independent review found the implementation spec-compliant with no P0/P1/P2 defects. Its two minor test-evidence findings were addressed: fallback nodes must be displayed, and a note-only negative control retaining both test tags fails the artwork pixel test while the fallback test passes (`/tmp/search-artwork-mutation.log`). The reviewed renderer was restored afterward.
+- Final `./gradlew :feature:search:jvmTest :desktopApp:compileKotlin --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 5s`; all 24 Search tests pass with zero failures/errors (`/tmp/search-artwork-final.log`).
+- `openspec validate studio-ui-redesign --strict`: valid. OpenSpec 3.3 is complete; no other Studio tasks were closed.
+Review closure: the independent reviewer confirmed both fallback nodes are displayed and the tag-retaining negative control resolves regression-sensitivity concerns. No blocking findings remain. Pixel mismatch still reports as an asynchronous-wait timeout; this is a non-blocking diagnostic limitation.
+Next owner: harness for user-authorized main integration and worktree removal. No remaining Studio manual acceptance is implied.
+Blockers: none in the reviewed production change. Native visual/device acceptance is not claimed; existing Studio acceptance tasks remain unchanged.
+Commit: user authorized committing the verified correction, integrating into main, and deleting the worktree on 2026-11-17; see Git history for delivery.
+
 ## Handoff - 2026-11-13 Shared App decomposition task disposition
 
 Route: user-directed OpenSpec status update

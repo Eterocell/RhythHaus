@@ -52,6 +52,17 @@ Search SHALL begin with its query field and local-field guidance. Blank/whitespa
 - **WHEN** the listener clears a query with no matches
 - **THEN** the query/no-match state MUST clear without showing all tracks or initiating scan/import
 
+### Requirement: Search result artwork
+Search rows MUST render a track's embedded artwork when available and decodable. Missing or undecodable artwork MUST use the existing neutral local fallback. Artwork MUST remain decorative in row semantics, preserving row sizing and actions.
+
+#### Scenario: Search result has embedded artwork
+- **WHEN** a Search result contains decodable embedded artwork bytes
+- **THEN** the result row MUST render that artwork without changing its row actions or accessibility identity
+
+#### Scenario: Search result artwork is unavailable
+- **WHEN** a Search result has no artwork bytes or its image cannot be decoded
+- **THEN** the row MUST show the existing neutral music fallback
+
 ### Requirement: Distinct content and source states
 Library empty, empty collection, filtered empty, active scan, unavailable source and terminal scan failure/cancellation SHALL be visually and semantically distinct. Nonempty scanning MUST keep music usable with compact progress. Missing artwork/tags MUST use existing truthful local fallbacks; unavailable source MUST NOT be portrayed as deleted media.
 

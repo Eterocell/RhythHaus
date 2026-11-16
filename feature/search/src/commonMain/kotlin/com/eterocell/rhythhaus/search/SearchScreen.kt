@@ -30,11 +30,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -43,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
@@ -66,6 +70,8 @@ internal const val SearchNoMatchTestTag = "search-no-match"
 internal const val SearchBlankQueryGuidanceTestTag =
     "search-blank-query-guidance"
 internal const val SearchBottomSpacerTestTag = "search-bottom-spacer"
+internal const val SearchArtworkSlotTestTag = "search-artwork-slot"
+internal const val SearchNeutralArtworkTestTag = "search-neutral-artwork"
 internal val SearchRenderedText =
     SemanticsPropertyKey<String>("SearchRenderedText")
 
@@ -411,7 +417,20 @@ internal fun SearchResultRow(
         onSelect = onStartSelection,
         selectLabel = selectionLabel,
         playingLabel = nowPlayingLabel,
-        artwork = { SearchNeutralArtwork() },
+        artwork = {
+            ArtworkImage(
+                artworkBytes = track.artworkBytes,
+                // Empty description keeps the thumbnail decorative so the
+                // row's title and actions stay the accessible surface.
+                contentDescription = "",
+                role = ArtworkImageRole.Thumbnail,
+                modifier =
+                    Modifier.fillMaxSize()
+                        .testTag(SearchArtworkSlotTestTag),
+                contentScale = ContentScale.Crop,
+                fallback = { SearchNeutralArtwork() },
+            )
+        },
         indicator = { if (isPlaying) playingIndicator() },
         trailing = {
             if (hasMoreActions) {
@@ -486,6 +505,9 @@ private fun SearchNeutralArtwork() {
         text = "♪",
         color = HausColors.current.textSecondary,
         fontSize = 18.sp,
-        modifier = Modifier.clearAndSetSemantics {},
+        modifier =
+            Modifier.clearAndSetSemantics {
+                testTag = SearchNeutralArtworkTestTag
+            },
     )
 }

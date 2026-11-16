@@ -29,6 +29,7 @@ Task 2.2 evidence update (2026-10-21):
 
 - [x] 3.1 按计划Task 3实现无领域Core行并原子迁移Library/Search/playlist occurrence适配；重设计六视图、具名过滤、网格、详情与metadata菜单，保持投影/顺序/选择/收藏/草稿语义；修改受影响行为回归并删除纯旧样式测试。
 - [ ] 3.2 跑Task 3所列Core/Library/Search/Playlists/Shared JVM及desktop compile；真实360×640首排、EN/ZH/200%字、过滤清除/metadata取消/可见顺序播放烟测，更新所属资源与证据，独立review后提交。
+- [x] 3.3 Render available embedded artwork in Search rows through the existing `core:ui` artwork renderer; keep the current neutral fallback for missing or undecodable bytes; add rendered-image and fallback regressions without changing Search's public API, row semantics, or actions.
 
 ## 4. Atomic player and Queue migration
 
