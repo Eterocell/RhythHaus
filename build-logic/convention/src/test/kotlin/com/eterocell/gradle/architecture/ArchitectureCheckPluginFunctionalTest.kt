@@ -288,7 +288,7 @@ class ArchitectureCheckPluginFunctionalTest {
 
         assertTrue(
             generatedAccessors.any { it.readText().contains("custom_message") },
-            "$result\n${generatedAccessors.joinToString("\n") { "${it.path}: ${it.readText()}" }}",
+            "${result.output}\n${generatedAccessors.joinToString("\n") { "${it.path}: ${it.readText()}" }}",
         )
     }
 
@@ -3164,12 +3164,15 @@ class ArchitectureCheckPluginFunctionalTest {
 
     private fun composeFixture(namespace: String, customRoot: String? = null): File {
         val projectDir = fixture()
+        val composeResourcesDependency = checkNotNull(System.getProperty("rhythhaus.composeResourcesDependency")) {
+            "Expected the Compose resources dependency from the version catalog"
+        }
         append(projectDir, ":shared", "apply(plugin = \"org.jetbrains.kotlin.plugin.compose\")")
         append(projectDir, ":shared", "apply(plugin = \"build-logic.compose-resources\")")
         append(
             projectDir,
             ":shared",
-            "dependencies.add(\"commonMainImplementation\", \"org.jetbrains.compose.components:components-resources:1.11.1\")",
+            "dependencies.add(\"commonMainImplementation\", \"$composeResourcesDependency\")",
         )
         projectDir.resolve("build.gradle.kts").appendText(
             """

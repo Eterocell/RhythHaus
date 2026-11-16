@@ -5,6 +5,10 @@ plugins {
 tasks.withType<Test>().configureEach {
     systemProperty(
         "rhythhaus.rootDir", projectDir.parentFile.parentFile.absolutePath)
+    systemProperty(
+        "rhythhaus.composeResourcesDependency",
+        libs.compose.components.resources.get(),
+    )
     providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile
         ->
         systemProperty("rhythhaus.aabProbeFile", probeFile)
