@@ -50,7 +50,8 @@ class PlaylistInteroperabilityControllerJvmTest {
                     replayGainTrackPeak = null,
                     replayGainAlbumGainDb = null,
                     replayGainAlbumPeak = null,
-                    lyrics = null)
+                    lyrics = null,
+                    albumArtist = null)
                 val repository = SqlDelightPlaylistRepository(database)
                 val original =
                     repository.createWithEntries(

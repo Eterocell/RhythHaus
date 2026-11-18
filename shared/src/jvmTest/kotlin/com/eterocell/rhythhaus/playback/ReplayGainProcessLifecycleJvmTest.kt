@@ -97,6 +97,11 @@ class ReplayGainProcessLifecycleJvmTest {
                                 override suspend fun save(
                                     snapshot: PlaybackSessionSnapshot
                                 ) = Unit
+
+                                override suspend fun savePosition(
+                                    currentOccurrenceId: String,
+                                    positionMillis: Long,
+                                ) = Unit
                             }
                         }
                     })

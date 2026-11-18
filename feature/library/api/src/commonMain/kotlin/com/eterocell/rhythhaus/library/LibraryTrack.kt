@@ -50,6 +50,8 @@ public data class LibraryTrack(
     public val replayGainAlbumPeak: Double? = null,
     /** Selected local embedded or sidecar lyrics. */
     public val lyrics: String? = null,
+    /** Album artist tag when present, distinct from the track artist. */
+    public val albumArtist: String? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is LibraryTrack &&
@@ -79,7 +81,8 @@ public data class LibraryTrack(
                 ?: (other.replayGainAlbumGainDb == null)) &&
             (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
                 ?: (other.replayGainAlbumPeak == null)) &&
-            lyrics == other.lyrics
+            lyrics == other.lyrics &&
+            albumArtist == other.albumArtist
 
     override fun hashCode(): Int {
         var result = id.hashCode()
@@ -105,6 +108,7 @@ public data class LibraryTrack(
         result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
         result = 31 * result + (lyrics?.hashCode() ?: 0)
+        result = 31 * result + (albumArtist?.hashCode() ?: 0)
         return result
     }
 }

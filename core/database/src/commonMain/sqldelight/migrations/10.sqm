@@ -1,0 +1,17 @@
+-- Schema version 10 -> 11: database-backed playback session persistence.
+-- New installs and upgrades both get the singleton metadata row table and the
+-- ordered occurrence queue; no prior playback rows exist to migrate.
+CREATE TABLE playback_session_meta (
+    id INTEGER NOT NULL PRIMARY KEY CHECK (id = 0),
+    currentOccurrenceId TEXT,
+    positionMillis INTEGER NOT NULL,
+    repeatMode TEXT NOT NULL,
+    shuffleMode TEXT NOT NULL,
+    legacyImportCompleted INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE playback_session_queue (
+    occurrenceId TEXT NOT NULL PRIMARY KEY,
+    queueIndex INTEGER NOT NULL,
+    trackId TEXT NOT NULL
+);

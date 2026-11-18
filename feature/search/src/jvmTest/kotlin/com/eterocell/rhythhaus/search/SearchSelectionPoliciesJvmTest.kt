@@ -551,6 +551,7 @@ class SearchSelectionPoliciesJvmTest {
             onPlayTrack = onPlay,
             onDismiss = {},
             playingIndicator = indicator,
+            artworkLoader = { null },
             bottomContentPadding = bottomPadding.dp,
             interactive = interactive,
         )

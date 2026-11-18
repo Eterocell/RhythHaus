@@ -411,6 +411,7 @@ class PlaylistSqlDelightRepositoryJvmTest {
                 replayGainAlbumGainDb = null,
                 replayGainAlbumPeak = null,
                 lyrics = null,
+                albumArtist = null,
             )
         }
 

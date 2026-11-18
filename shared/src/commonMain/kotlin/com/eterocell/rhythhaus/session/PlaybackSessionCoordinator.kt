@@ -46,7 +46,8 @@ internal class PlaybackSessionCoordinator(
     private var checkpointCollectorJob: Job? = null
     private val checkpointCollectorReady = CompletableDeferred<Unit>()
     private var terminalFailure: Throwable? = null
-    private var highestPersistedCheckpointRevision: Long? = null
+    private var highestPersistedSnapshotRevision: Long? = null
+    private var highestPersistedPositionRevision: Long? = null
     private val actorJob: Job
 
     init {
@@ -100,25 +101,49 @@ internal class PlaybackSessionCoordinator(
                 active = command
                 pending = null
                 if (command is Command.Checkpoint) {
-                    var newest = command.checkpoint
+                    var newestImmediate: PlaybackCheckpoint.Immediate? = null
+                    var newestPosition: PlaybackCheckpoint.Position? = null
+                    fun offer(checkpoint: PlaybackCheckpoint) {
+                        when (checkpoint) {
+                            is PlaybackCheckpoint.Immediate ->
+                                newestImmediate =
+                                    newerImmediate(newestImmediate, checkpoint)
+
+                            is PlaybackCheckpoint.Position ->
+                                newestPosition =
+                                    newerPosition(newestPosition, checkpoint)
+                        }
+                    }
+                    offer(command.checkpoint)
                     while (true) {
                         val next = commands.tryReceive().getOrNull() ?: break
                         if (next is Command.Checkpoint) {
-                            newest = newerCheckpoint(newest, next.checkpoint)
+                            offer(next.checkpoint)
                         } else {
                             pending = next
                             break
                         }
                     }
-                    val revision = newest.revision
-                    val persistedRevision = highestPersistedCheckpointRevision
-                    if ((revision == null && persistedRevision == null) ||
-                        (revision != null &&
-                            (persistedRevision == null ||
-                                revision >= persistedRevision))) {
-                        if (persist(newest.snapshot) && revision != null) {
-                            highestPersistedCheckpointRevision = revision
-                        }
+                    // The structural lane is written first so a queue change
+                    // that was captured before a newer position can never be
+                    // dropped by coalescing the two together.
+                    val immediate = newestImmediate
+                    val immediateSaved =
+                        immediate?.let {
+                            persistSnapshot(
+                                it.snapshot,
+                                it.revision,
+                                force = false,
+                            )
+                        } ?: false
+                    val position = newestPosition
+                    if (position != null) {
+                        val immediateRevision = immediate?.revision
+                        val coveredByImmediate =
+                            immediateSaved &&
+                                immediateRevision != null &&
+                                immediateRevision >= position.revision
+                        if (!coveredByImmediate) persistPosition(position)
                     }
                 } else {
                     processBarrier(command)
@@ -143,10 +168,11 @@ internal class PlaybackSessionCoordinator(
         }
     }
 
-    private fun newerCheckpoint(
-        first: PlaybackCheckpoint,
-        second: PlaybackCheckpoint
-    ): PlaybackCheckpoint {
+    private fun newerImmediate(
+        first: PlaybackCheckpoint.Immediate?,
+        second: PlaybackCheckpoint.Immediate,
+    ): PlaybackCheckpoint.Immediate {
+        if (first == null) return second
         val firstRevision = first.revision
         val secondRevision = second.revision
         return when {
@@ -157,6 +183,13 @@ internal class PlaybackSessionCoordinator(
             else -> second
         }
     }
+
+    private fun newerPosition(
+        first: PlaybackCheckpoint.Position?,
+        second: PlaybackCheckpoint.Position,
+    ): PlaybackCheckpoint.Position =
+        if (first == null || second.revision >= first.revision) second
+        else first
 
     private suspend fun processBarrier(command: Command) {
         when (command) {
@@ -271,18 +304,107 @@ internal class PlaybackSessionCoordinator(
         }
     }
 
-    private suspend fun persistRevisioned(
-        publication: RevisionedPlaybackSessionSnapshot
+    /**
+     * Persists a complete snapshot and its queue.
+     *
+     * Checkpoints may be superseded by a newer full snapshot, while restore and
+     * reconcile publications are authoritative and always persist. A position
+     * that was already written for the same current occurrence is re-applied
+     * after a delayed older snapshot so coalescing can preserve both the newest
+     * structure and the newest position.
+     */
+    private suspend fun persistSnapshot(
+        snapshot: PlaybackSessionSnapshot,
+        revision: Long?,
+        force: Boolean,
     ): Boolean {
-        if (!persist(publication.snapshot)) return false
-        publication.revision?.let { revision ->
-            highestPersistedCheckpointRevision =
-                maxOf(
-                    highestPersistedCheckpointRevision ?: revision,
-                    revision,
-                )
+        if (_phase.value == PlaybackSessionPhase.FailedSafe) return false
+        val snapshotWatermark = highestPersistedSnapshotRevision
+        if (!force) {
+            if (revision == null) {
+                if (snapshotWatermark != null) return false
+            } else if (snapshotWatermark != null &&
+                revision < snapshotWatermark) {
+                return false
+            }
+        }
+        val previousDurable = durableSnapshot
+        val preservedOccurrenceId =
+            previousDurable.currentOccurrenceId?.takeIf {
+                it == snapshot.currentOccurrenceId
+            }
+        val positionWatermark = highestPersistedPositionRevision
+        val preservesNewerPosition =
+            positionWatermark != null &&
+                (revision == null || positionWatermark > revision) &&
+                preservedOccurrenceId != null
+        val effectiveSnapshot =
+            if (preservesNewerPosition) {
+                snapshot.copy(positionMillis = previousDurable.positionMillis)
+            } else snapshot
+        if (!persist(effectiveSnapshot)) return false
+        if (revision != null) {
+            highestPersistedSnapshotRevision =
+                maxOf(snapshotWatermark ?: revision, revision)
+            if (!preservesNewerPosition) {
+                highestPersistedPositionRevision =
+                    maxOf(positionWatermark ?: revision, revision)
+            }
         }
         return true
+    }
+
+    private suspend fun persistRevisioned(
+        publication: RevisionedPlaybackSessionSnapshot
+    ): Boolean =
+        persistSnapshot(
+            publication.snapshot, publication.revision, force = true)
+
+    /**
+     * Applies a position-only checkpoint without touching the queue.
+     *
+     * The revision guard rejects delayed progress that a newer full snapshot
+     * already covers, and the durable current identity guard rejects progress
+     * emitted for an occurrence that a structural save has replaced.
+     */
+    private suspend fun persistPosition(
+        checkpoint: PlaybackCheckpoint.Position
+    ): Boolean {
+        if (_phase.value == PlaybackSessionPhase.FailedSafe) return false
+        val watermark = highestPersistedPositionRevision
+        if (watermark != null && checkpoint.revision <= watermark) return false
+        if (durableSnapshot.currentOccurrenceId !=
+            checkpoint.currentOccurrenceId) {
+            return false
+        }
+        if (!writePosition(
+            checkpoint.currentOccurrenceId,
+            checkpoint.positionMillis,
+        )) {
+            return false
+        }
+        highestPersistedPositionRevision =
+            maxOf(watermark ?: checkpoint.revision, checkpoint.revision)
+        return true
+    }
+
+    /** Writes a position for an already validated current occurrence. */
+    private suspend fun writePosition(
+        currentOccurrenceId: String,
+        positionMillis: Long,
+    ): Boolean {
+        val sanitizedPositionMillis = positionMillis.coerceAtLeast(0L)
+        return try {
+            store.savePosition(currentOccurrenceId, sanitizedPositionMillis)
+            durableSnapshot =
+                durableSnapshot.copy(positionMillis = sanitizedPositionMillis)
+            true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            enterFailedSafe()
+            false
+        }
     }
 
     private suspend fun applyEmptyPaused(tracks: List<PlayableTrack>) {

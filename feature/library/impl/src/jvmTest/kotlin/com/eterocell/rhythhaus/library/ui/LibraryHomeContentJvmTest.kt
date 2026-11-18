@@ -1082,6 +1082,81 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun albumCoversLoadByViewportRatherThanCatalogSize() = runComposeUiTest {
+        val catalog =
+            List(1_000) { index ->
+                val id = index.toString().padStart(4, '0')
+                track(id, id, "Release $id", "Artist", 1, 1)
+            }
+        val loaded = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val loader: suspend (String) -> ByteArray? = {
+            loaded.add(it)
+            null
+        }
+        var library by mutableStateOf(catalog.take(100))
+        var width by mutableStateOf(360.dp)
+        setContent {
+            Box(Modifier.size(width, 640.dp)) {
+                LibraryHomeContent(
+                    tracks = library,
+                    browseMode = BrowseMode.Albums,
+                    playHistory = emptyMap(),
+                    createdAtByTrackId = emptyMap(),
+                    folderPickerLauncher = StubPicker,
+                    sourcePickerActionVisible = false,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = loader,
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onPlayTrack = { _, _ -> },
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceOptions = emptyList(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
+                )
+            }
+        }
+        waitUntil { "0000" in loaded }
+        assertTrue(
+            loaded.size < 30,
+            "Initial viewport requested ${loaded.size} covers")
+        library = catalog
+        waitForIdle()
+        assertTrue(loaded.size < 30 && "0999" !in loaded)
+        onNode(hasScrollToIndexAction()).performScrollToIndex(501)
+        waitUntil { "0999" in loaded }
+        onNodeWithText("Release 0999").assertIsDisplayed()
+        width = 480.dp
+        waitForIdle()
+        onNode(hasScrollToIndexAction()).performScrollToIndex(335)
+        onNodeWithText("Release 0999").assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun artistsGroupByExactNameWithAlbumAndTrackCounts() = runComposeUiTest {
         var browseMode by mutableStateOf(BrowseMode.Artists)
         val openedArtists = mutableListOf<String>()
@@ -1475,15 +1550,16 @@ class LibraryHomeContentJvmTest {
             val adaptiveTracks =
                 List(12) { index ->
                     track(
-                        id = "adaptive-${index + 1}",
-                        title =
-                            if (index == 11) longTitle
-                            else "Track ${index + 1}",
-                        album = "Album ${index % 4}",
-                        artist = "Artist ${index % 5}",
-                        disc = 1,
-                        number = index + 1,
-                    )
+                            id = "adaptive-${index + 1}",
+                            title =
+                                if (index == 11) longTitle
+                                else "Track ${index + 1}",
+                            album = "Album ${index % 4}",
+                            artist = "Artist ${index % 5}",
+                            disc = 1,
+                            number = index + 1,
+                        )
+                        .copy(albumArtist = "Various Artists")
                 }
             val favoriteIds = setOf(adaptiveTracks.first().id)
             val artworkIds = setOf(adaptiveTracks[1].id)

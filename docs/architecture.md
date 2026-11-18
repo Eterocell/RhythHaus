@@ -45,6 +45,10 @@ feature implementation, even after `:core:database` becomes the sole SQLDelight
 owner. Stateful screens use immutable `UiState`, `UiEvent`, and `UiEffect` with a
 Presenter/ViewModel when state warrants one; stateless UI gets no empty types.
 
+The Shared playback session coordinator owns the durable session adapter and the
+read-only legacy Preferences importer. Core Database owns their SQLDelight schema
+and migrations; neither the database nor the playback controller depends on Shared.
+
 The approved playlists migration creates unexported `:feature:playlists:impl` for
 Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`. It owns saved-playlist/playback-queue UI,
 immutable domain-named Playlist state/action/reducer/owner equivalents, repository
@@ -89,11 +93,14 @@ bottom-bar/Now Playing policy, and `EqualizerStrip`; Search owns query/filter/re
 empty behavior and Search-row interaction. For duplicate IDs, Search uses only an internal
 rendering identity of filtered occurrence index plus track ID, never `track.id` alone; it does not
 alter `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate
-semantics. Search owns exactly its five Search-only localized keys. Shared injects clear,
+semantics. Search owns its localized keys, including the original five moved keys. New
+keys require EN/ZH parity and must not duplicate Shared-owned keys. Shared injects clear,
 Now Playing, and composable select-track formatting as values; the title comes from the Shared
 route header; no resource key duplication or
-generated handle crosses the boundary. The normative Search boundary is
-[the approved Search design](superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+generated handle crosses the boundary. Shared supplies the local artwork loader by track ID;
+Search does not depend on storage and routine track-list queries do not materialize covers.
+See the [review repair design](superpowers/specs/2026-11-18-library-playback-review-design.md)
+for the amendments to the [original Search design](superpowers/specs/2026-08-07-search-feature-extraction-design.md).
 
 The approved Settings migration creates one unexported `:feature:settings` leaf module targeting
 Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, with one common implementation, no API split, no

@@ -971,6 +971,86 @@ class LibraryScannerTest {
         assertEquals("TagLib Album", track.album)
         assertEquals(187_000L, track.durationMillis)
     }
+
+    @Test
+    fun rescanBackfillsAlbumArtistForUnchangedCandidatesAndKeepsUntaggedTracksNull() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        var albumArtist: String? = null
+        var metadataReads = 0
+        val platform =
+            FakePlatformAudioScanner(
+                events =
+                    listOf(
+                        PlatformScanEvent.AudioCandidate(
+                            AudioScanCandidate(
+                                sourceId = source.id,
+                                sourceLocalKey = "song.flac",
+                                displayPath = "song.flac",
+                                displayName = "song.flac",
+                                audioSource =
+                                    AudioSource.FilePath("/Music/song.flac"),
+                                sizeBytes = 10L,
+                                modifiedAtEpochMillis = 5L,
+                            ),
+                        ),
+                    ),
+            )
+        val scanner =
+            LibraryScanner(
+                repository = repository,
+                platformScanner = platform,
+                metadataReader =
+                    AudioMetadataReader(
+                        tagLibReader =
+                            object : TagLibReader {
+                                override fun readPath(
+                                    path: String
+                                ): TagReadResult {
+                                    metadataReads++
+                                    return TagReadResult.Found(
+                                        TagMetadata(
+                                            title = "Song",
+                                            artist = "Track Artist",
+                                            album = "Shared Title",
+                                            albumArtist = albumArtist,
+                                        ))
+                                }
+
+                                override fun readProperties(
+                                    path: String
+                                ): Map<String, String> = emptyMap()
+                            },
+                        platformMetadataReader = { null },
+                    ),
+                now = { 100L },
+                idFactory = { prefix -> "$prefix-id" },
+            )
+
+        scanner.scan(source)
+
+        assertNull(repository.tracks().single().albumArtist)
+        assertEquals(1, metadataReads)
+
+        albumArtist = "Various Artists"
+        scanner.scan(source)
+
+        assertEquals(
+            "Various Artists", repository.tracks().single().albumArtist)
+        assertEquals(2, metadataReads)
+
+        albumArtist = null
+        scanner.scan(source)
+
+        assertNull(repository.tracks().single().albumArtist)
+        assertEquals(3, metadataReads)
+    }
 }
 
 private class FakePlatformAudioScanner(

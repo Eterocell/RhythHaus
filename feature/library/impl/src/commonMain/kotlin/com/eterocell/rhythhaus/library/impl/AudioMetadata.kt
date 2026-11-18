@@ -25,6 +25,7 @@ data class AudioMetadata(
     val replayGainAlbumGainDb: Double? = null,
     val replayGainAlbumPeak: Double? = null,
     val lyrics: String? = null,
+    val albumArtist: String? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is AudioMetadata &&
@@ -44,7 +45,8 @@ data class AudioMetadata(
                 ?: (other.replayGainAlbumGainDb == null)) &&
             (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
                 ?: (other.replayGainAlbumPeak == null)) &&
-            lyrics == other.lyrics
+            lyrics == other.lyrics &&
+            albumArtist == other.albumArtist
 
     override fun hashCode(): Int {
         var result = title?.hashCode() ?: 0
@@ -60,6 +62,7 @@ data class AudioMetadata(
         result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
         result = 31 * result + (lyrics?.hashCode() ?: 0)
+        result = 31 * result + (albumArtist?.hashCode() ?: 0)
         return result
     }
 }
@@ -162,6 +165,7 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata =
         replayGainAlbumGainDb = parseReplayGainDb(replayGainAlbumGain),
         replayGainAlbumPeak = parseReplayGainPeak(replayGainAlbumPeak),
         lyrics = lyrics.boundedLyricsOrNull(),
+        albumArtist = albumArtist.normalizedOrNull(),
     )
 
 private fun AudioMetadata?.mergeMissing(
@@ -179,6 +183,7 @@ private fun AudioMetadata?.mergeMissing(
         artworkBytes = artworkBytes ?: fallback.artworkBytes,
         artworkMimeType = artworkMimeType ?: fallback.artworkMimeType,
         lyrics = lyrics ?: fallback.lyrics,
+        albumArtist = albumArtist ?: fallback.albumArtist,
     )
 }
 

@@ -1,10 +1,20 @@
 ## Current handoff index
 
-- Current implementation: Shared App decomposition merged into local `main` at `f25a08d9`; merged-main `./init.sh` passed; desktop AX smoke task 7.3 was removed from scope by the user and is not planned (see latest handoff).
-
 - Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
-- Durable requirements and task status: active changes in [`openspec/changes/`](openspec/changes/) and completed history in [`openspec/changes/archive/`](openspec/changes/archive/).
-- The dated handoffs below are newest-first historical evidence; they do not supersede current roadmap or OpenSpec status.
+- Durable requirements and task status: [`openspec/changes/`](openspec/changes/). The dated handoffs below are newest first.
+
+## Handoff — 2026-11-18 library and playback review repairs
+
+Route: openspec+superpowers. Owner: implementation. Input: [approved plan](docs/superpowers/plans/2026-11-18-library-playback-review.md). Track the eight outcomes in [`repair-library-playback-review`](openspec/changes/repair-library-playback-review/tasks.md).
+
+- CI: the Search resource ownership and workflow regression tests passed together with strict configuration caching. The convention test task now passes a string dependency coordinate rather than an unserializable Gradle dependency. A Gradle dry run confirmed selection of the Database, Onboarding, Android application unit and desktop test tasks; a dry run is not a suite pass.
+- Albums: `:feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest.albumCoversLoadByViewportRatherThanCatalogSize'` passed. The rendered test grows the catalog from 100 to 1,000 entries, checks bounded cover requests, scrolls to the last release, and resizes the viewport.
+
+- Session: SQLDelight preserves the entire 10,001-occurrence queue, current occurrence, position and modes. The restart regression restores through the actual controller in `Paused`, replaces the queue, and reopens again. A SQLite trigger aborts the legacy import before marker commit; retry restores without partial rows. Progress and mode-only changes leave unchanged queue rows intact. The coordinator suite covers ordering, stale events and flush.
+- SAF: all four Android host tests passed, including one child listing per directory in a 1,000-entry fixture and bounded/failed sidecars. Search: the 27 feature tests and nine Shared route tests passed, including rendered artwork from a real database. Now Playing: 70 JVM tests passed, including adjustable semantics, keyboard, drag and cancellation. Albums: all 55 selected Library tests passed, as did navigation/CarPlay album and shell selection checks. Database: all 28 JVM tests passed, including existing/unversioned file upgrades.
+- Integration: Android debug Kotlin, desktop Kotlin and Shared iOS-simulator Kotlin compilation, `architectureCheck` and `openspec validate repair-library-playback-review --strict` passed. The full convention run had 152 passing and two failing tests; both failures were corrected (obsolete fixture package and new Shared session owners), and both passed on a focused rerun. No post-fix full convention, `./init.sh`, physical device, audible playback or native screen-reader pass is claimed.
+- Blocker: `:core:database:verifyCommonMainRhythHausDatabaseMigration` reports only a historical `scan_session` mismatch when upgrading `1.db`: `6.sqm` appended `changeSummaryJson` after `terminalMessage`, while fresh schemas and `10.db` put it before. These repairs do not modify that table. Upgrading the checked-in `10.db` with `10.sqm` and `11.sqm` matches the fresh columns, order, nullability, defaults and primary keys for all three affected tables. No existing scan-history tables were rebuilt merely to satisfy that unrelated verifier.
+- Next owner: release integration. Decide the separate historical schema normalization before claiming a clean whole-history migration gate. Native assistive technology and physical Android document-provider acceptance remain user-owned.
 
 ## Handoff - 2026-11-17 Search result artwork correction
 

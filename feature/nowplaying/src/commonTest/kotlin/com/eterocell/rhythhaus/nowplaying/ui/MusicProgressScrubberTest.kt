@@ -106,4 +106,59 @@ class MusicProgressScrubberTest {
 
         assertEquals(listOf(160_000L), emittedTargets)
     }
+
+    @Test
+    fun keyboardStepMovesWithinDurationAndClampsAtBothBounds() {
+        assertEquals(
+            15_000L,
+            scrubberSeekTargetForDelta(
+                positionMillis = 10_000L,
+                durationMillis = 100_000L,
+                deltaMillis = MusicScrubberKeyboardStepMillis))
+        assertEquals(
+            5_000L,
+            scrubberSeekTargetForDelta(
+                positionMillis = 10_000L,
+                durationMillis = 100_000L,
+                deltaMillis = -MusicScrubberKeyboardStepMillis))
+        assertEquals(
+            0L,
+            scrubberSeekTargetForDelta(
+                positionMillis = 2_000L,
+                durationMillis = 100_000L,
+                deltaMillis = -MusicScrubberKeyboardStepMillis))
+        assertEquals(
+            100_000L,
+            scrubberSeekTargetForDelta(
+                positionMillis = 98_000L,
+                durationMillis = 100_000L,
+                deltaMillis = MusicScrubberKeyboardStepMillis))
+    }
+
+    @Test
+    fun keyboardStepHasNoTargetWithoutKnownDuration() {
+        assertNull(
+            scrubberSeekTargetForDelta(
+                positionMillis = 10_000L,
+                durationMillis = 0L,
+                deltaMillis = MusicScrubberKeyboardStepMillis))
+        assertNull(
+            scrubberSeekTargetForDelta(
+                positionMillis = 10_000L,
+                durationMillis = -1L,
+                deltaMillis = MusicScrubberKeyboardStepMillis))
+    }
+
+    @Test
+    fun releaseWithoutKnownDurationDoesNotProduceSeekTarget() {
+        val state =
+            MusicScrubInteractionState(positionMillis = 0L, durationMillis = 0L)
+
+        state.startScrub(0.5f)
+        state.updateScrub(0.8f)
+
+        assertNull(state.finishScrub())
+        assertEquals(0L, state.displayPositionMillis)
+        assertEquals(0f, state.displayFraction)
+    }
 }

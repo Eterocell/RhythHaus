@@ -18,6 +18,7 @@ internal fun LibraryTrack.toPlayableTrack(): PlayableTrack =
         replayGainTrackPeak = replayGainTrackPeak,
         replayGainAlbumGainDb = replayGainAlbumGainDb,
         replayGainAlbumPeak = replayGainAlbumPeak,
+        albumArtist = albumArtist,
     )
 
 internal fun selectLibraryTrackForPlayback(

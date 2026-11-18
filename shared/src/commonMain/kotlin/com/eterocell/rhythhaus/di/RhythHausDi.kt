@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
 import com.eterocell.rhythhaus.carplay.CarPlayFacade
 import com.eterocell.rhythhaus.createPlatformPlaybackEngine
+import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
@@ -77,7 +78,9 @@ fun rhythHausModule(): Module = module {
         )
     }
     single<PlaybackSessionController> { get<PlaybackController>() }
-    single<PlaybackSessionStore> { createPlaybackSessionStore() }
+    single<PlaybackSessionStore> {
+        createPlaybackSessionStore(database = get<LibraryDatabase>())
+    }
     single {
         PlaybackSessionCoordinator(
             controller = get(),

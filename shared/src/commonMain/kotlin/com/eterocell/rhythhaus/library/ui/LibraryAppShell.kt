@@ -77,6 +77,7 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.albumIdentity
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -588,7 +589,12 @@ fun LibraryHomeScreen(
         when (pageKey) {
             TrackSelectionPageKey.HomeSongs -> homeVisibleTrackIds
             is TrackSelectionPageKey.Album ->
-                albums.filter { it.album == pageKey.album }.map(Track::id)
+                albums
+                    .filter {
+                        it.album == pageKey.album &&
+                            it.albumIdentity.albumArtist == pageKey.albumArtist
+                    }
+                    .map(Track::id)
             is TrackSelectionPageKey.Artist ->
                 artists.filter { it.artist == pageKey.artist }.map(Track::id)
             TrackSelectionPageKey.Search -> searchVisibleTrackIds
@@ -654,7 +660,10 @@ fun LibraryHomeScreen(
         val route = appState.navigation.current
         return when (route) {
             is LibraryRoute.AlbumDetail ->
-                snapshot.tracks.none { it.album == route.album }
+                snapshot.tracks.none {
+                    it.album == route.album &&
+                        it.albumIdentity.albumArtist == route.albumArtist
+                }
             is LibraryRoute.ArtistDetail ->
                 snapshot.tracks.none { it.artist == route.artist }
             else -> false
@@ -985,7 +994,11 @@ fun LibraryHomeScreen(
                     onClearLibrary = onClearLibrary,
                     onCancelScan = onCancelScan,
                     onOpenAlbum = { album ->
-                        onOpenDetailRoute(LibraryRoute.AlbumDetail(album))
+                        onOpenDetailRoute(
+                            LibraryRoute.AlbumDetail(
+                                album.album,
+                                album.albumArtist,
+                            ))
                     },
                     onOpenArtist = { artist ->
                         onOpenDetailRoute(LibraryRoute.ArtistDetail(artist))

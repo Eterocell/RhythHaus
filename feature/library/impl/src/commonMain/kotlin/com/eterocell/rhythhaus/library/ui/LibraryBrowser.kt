@@ -1,8 +1,10 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
+import com.eterocell.rhythhaus.AlbumIdentity
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.albumIdentity
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import org.jetbrains.compose.resources.stringResource
@@ -93,24 +95,32 @@ internal fun albumGridGapDp(compact: Boolean): Float = if (compact) 16f else 20f
 
 internal data class AlbumGroup(
     val album: String,
+    val albumArtist: String,
     val tracks: List<Track>,
-    val artist: String? = tracks.firstOrNull()?.artist,
+    val artist: String? = albumArtist,
 )
 
 internal data class ArtistGroup(
     val artist: String,
     val tracks: List<Track>,
-    val albumCount: Int = tracks.map { it.album }.distinct().size,
+    val albumCount: Int = tracks.map { it.albumIdentity }.distinct().size,
 )
+
+private val albumGroupOrder: Comparator<AlbumGroup> =
+    compareBy<AlbumGroup> { it.album.lowercase() }
+        .thenBy { it.albumArtist.lowercase() }
+        .thenBy { it.album }
+        .thenBy { it.albumArtist }
 
 // ----- Repository-level grouping (LibraryTrack) -----
 
 internal fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> =
     tracks
-        .groupBy { it.album }
-        .map { (album, trackList) ->
+        .groupBy { AlbumIdentity.of(it.album, it.albumArtist, it.artist) }
+        .map { (identity, trackList) ->
             AlbumGroup(
-                album = album,
+                album = identity.album,
+                albumArtist = identity.albumArtist,
                 tracks =
                     trackList
                         .sortedWith(
@@ -119,10 +129,10 @@ internal fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> =
                                 .thenBy { it.title.lowercase() },
                         )
                         .map { it.toUiTrack() },
-                artist = trackList.firstOrNull()?.artist,
+                artist = identity.albumArtist,
             )
         }
-        .sortedBy { it.album.lowercase() }
+        .sortedWith(albumGroupOrder)
 
 internal fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> =
     tracks
@@ -146,20 +156,21 @@ internal fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> =
 
 internal fun groupTracksByAlbum(tracks: List<Track>): List<AlbumGroup> =
     tracks
-        .groupBy { it.album }
-        .map { (album, trackList) ->
+        .groupBy { it.albumIdentity }
+        .map { (identity, trackList) ->
             AlbumGroup(
-                album = album,
+                album = identity.album,
+                albumArtist = identity.albumArtist,
                 tracks =
                     trackList.sortedWith(
                         compareBy<Track> { it.discNumber ?: 0 }
                             .thenBy { it.trackNumber ?: 0 }
                             .thenBy { it.title.lowercase() },
                     ),
-                artist = trackList.firstOrNull()?.artist,
+                artist = identity.albumArtist,
             )
         }
-        .sortedBy { it.album.lowercase() }
+        .sortedWith(albumGroupOrder)
 
 internal fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> =
     tracks
@@ -190,10 +201,12 @@ public sealed interface LibrarySelectionPage {
     /** Shared songs-home selection page. */
     public data object HomeSongs : LibrarySelectionPage
 
-    /** Exact album-name selection page. */
+    /** Exact album identity selection page. */
     public data class Album(
         /** The exact album name. */
         public val name: String,
+        /** Effective album artist distinguishing same-title releases. */
+        public val albumArtist: String = "",
     ) : LibrarySelectionPage
 
     /** Exact artist-name selection page. */
@@ -298,4 +311,5 @@ internal fun LibraryTrack.toUiTrack(): Track =
         replayGainAlbumGainDb = replayGainAlbumGainDb,
         replayGainAlbumPeak = replayGainAlbumPeak,
         lyrics = lyrics,
+        albumArtist = albumArtist,
     )

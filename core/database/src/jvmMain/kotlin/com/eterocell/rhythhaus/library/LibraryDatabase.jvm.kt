@@ -39,6 +39,15 @@ private val favoriteTables = setOf("track_favorite")
 private val playHistoryTables = setOf("track_play_history")
 private val smartPlaylistTables = setOf("smart_playlist")
 private val metadataOverrideTables = setOf("track_metadata_override")
+private val lyricsTables =
+    libraryTables +
+        playlistTables +
+        favoriteTables +
+        playHistoryTables +
+        smartPlaylistTables +
+        metadataOverrideTables
+private val sessionTables =
+    lyricsTables + setOf("playback_session_meta", "playback_session_queue")
 private const val changeSummarySchemaVersion = 7L
 private const val replayGainSchemaVersion = 8L
 private const val lyricsSchemaVersion = 10L
@@ -70,13 +79,10 @@ private fun bootstrapLegacyVersionZeroDatabase(
                         favoriteTables +
                         playHistoryTables +
                         smartPlaylistTables -> 5L
-                tables ==
-                    libraryTables +
-                        playlistTables +
-                        favoriteTables +
-                        playHistoryTables +
-                        smartPlaylistTables +
-                        metadataOverrideTables ->
+                tables == sessionTables ->
+                    if (driver.hasColumn("library_track", "albumArtist")) 12L
+                    else 11L
+                tables == lyricsTables ->
                     when {
                         driver.hasColumn("library_track", "lyrics") ->
                             lyricsSchemaVersion

@@ -22,18 +22,19 @@ CREATE TABLE IF NOT EXISTS library_track (
     replayGainTrackPeak REAL DEFAULT NULL,
     replayGainAlbumGainDb REAL DEFAULT NULL,
     replayGainAlbumPeak REAL DEFAULT NULL,
-    lyrics TEXT DEFAULT NULL
+    lyrics TEXT DEFAULT NULL,
+    albumArtist TEXT DEFAULT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sourceId, sourceLocalKey);
 
 upsertTrack:
 INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
-    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    displayName, title, artist, album, albumArtist, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis,
     trackNumber, discNumber, artworkBytes, artworkMimeType,
     replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     sourceId = excluded.sourceId,
     sourceLocalKey = excluded.sourceLocalKey,
@@ -43,6 +44,7 @@ ON CONFLICT(id) DO UPDATE SET
     title = excluded.title,
     artist = excluded.artist,
     album = excluded.album,
+    albumArtist = excluded.albumArtist,
     durationMillis = excluded.durationMillis,
     sizeBytes = excluded.sizeBytes,
     modifiedAtEpochMillis = excluded.modifiedAtEpochMillis,
@@ -61,7 +63,7 @@ ON CONFLICT(id) DO UPDATE SET
 
 selectAllTracks:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
-    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    displayName, title, artist, album, albumArtist, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
@@ -70,7 +72,7 @@ FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTracksForSource:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
-    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    displayName, title, artist, album, albumArtist, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
@@ -79,7 +81,7 @@ FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist 
 
 selectTrackBySourceKey:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
-    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    displayName, title, artist, album, albumArtist, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
@@ -91,7 +93,7 @@ UPDATE library_track SET lastSeenScanId = ? WHERE sourceId = ? AND sourceLocalKe
 
 selectTrackForMetadataEditor:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
-    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    displayName, title, artist, album, albumArtist, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,

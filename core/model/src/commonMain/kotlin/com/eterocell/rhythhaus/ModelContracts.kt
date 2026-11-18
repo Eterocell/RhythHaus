@@ -34,6 +34,8 @@ public data class Track(
     public val replayGainAlbumPeak: Double? = null,
     /** Optional local lyrics. */
     public val lyrics: String? = null,
+    /** Album artist tag when present, distinct from the track artist. */
+    public val albumArtist: String? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -42,6 +44,7 @@ public data class Track(
             title == other.title &&
             artist == other.artist &&
             album == other.album &&
+            albumArtist == other.albumArtist &&
             durationSeconds == other.durationSeconds &&
             accent == other.accent &&
             source == other.source &&
@@ -66,6 +69,7 @@ public data class Track(
         result = 31 * result + title.hashCode()
         result = 31 * result + artist.hashCode()
         result = 31 * result + album.hashCode()
+        result = 31 * result + (albumArtist?.hashCode() ?: 0)
         result = 31 * result + durationSeconds
         result = 31 * result + accent.hashCode()
         result = 31 * result + source.hashCode()
@@ -137,6 +141,8 @@ public data class PlayableTrack(
     public val replayGainAlbumPeak: Double? = null,
     /** Optional local lyrics. */
     public val lyrics: String? = null,
+    /** Album artist tag when present, distinct from the track artist. */
+    public val albumArtist: String? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -145,6 +151,7 @@ public data class PlayableTrack(
             title == other.title &&
             artist == other.artist &&
             album == other.album &&
+            albumArtist == other.albumArtist &&
             durationMillis == other.durationMillis &&
             source == other.source &&
             artworkBytes.contentEquals(other.artworkBytes) &&
@@ -166,6 +173,7 @@ public data class PlayableTrack(
         result = 31 * result + title.hashCode()
         result = 31 * result + artist.hashCode()
         result = 31 * result + (album?.hashCode() ?: 0)
+        result = 31 * result + (albumArtist?.hashCode() ?: 0)
         result = 31 * result + (durationMillis?.hashCode() ?: 0)
         result = 31 * result + source.hashCode()
         result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)

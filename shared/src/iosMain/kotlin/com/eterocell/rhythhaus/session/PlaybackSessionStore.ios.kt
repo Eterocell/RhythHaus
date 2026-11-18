@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.session
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
+import com.eterocell.rhythhaus.library.LibraryDatabase
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +17,7 @@ private const val PlaybackSessionPreferenceFileName =
     "playback_session.preferences_pb"
 private const val ApplicationSupportFolderName = "RhythHaus"
 
-private val playbackSessionDataStore by lazy {
+private val legacyPlaybackSessionDataStore by lazy {
     PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
         migrations = emptyList(),
@@ -25,8 +26,15 @@ private val playbackSessionDataStore by lazy {
     )
 }
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    DataStorePlaybackSessionStore(playbackSessionDataStore)
+actual fun createPlaybackSessionStore(
+    database: LibraryDatabase
+): PlaybackSessionStore =
+    SqlDelightPlaybackSessionStore(
+        database = database.database,
+        legacySource =
+            DataStorePlaybackSessionLegacySource(
+                legacyPlaybackSessionDataStore),
+    )
 
 @OptIn(ExperimentalForeignApi::class)
 private fun playbackSessionPreferencePath(): String {

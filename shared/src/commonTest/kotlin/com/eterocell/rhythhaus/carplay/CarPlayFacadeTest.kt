@@ -108,7 +108,7 @@ class CarPlayFacadeTest {
                     .single { it.id == CarPlayCategoryId.Artists }
                     .entries
 
-            assertEquals(listOf("Beta", "Alpha"), albums.map { it.title })
+            assertEquals(listOf("Alpha", "Beta"), albums.map { it.title })
             assertEquals(listOf("Band A", "Band B"), artists.map { it.title })
             val alphaTracks = albums.single { it.title == "Alpha" }.children
             assertEquals(
@@ -126,6 +126,124 @@ class CarPlayFacadeTest {
 
             fixture.close()
         }
+
+    @Test
+    fun sameTitleReleasesAreDistinctAlbumsKeyedByAlbumArtist() = runBlocking {
+        val fixture = Fixture()
+        fixture.addTracks(
+            track("one")
+                .copy(
+                    artist = "Track Artist A",
+                    album = "Shared Title",
+                    albumArtist = "Zebra Records",
+                ),
+            track("two")
+                .copy(
+                    artist = "Track Artist B",
+                    album = "Shared Title",
+                    albumArtist = "Alpha Records",
+                ),
+        )
+        fixture.publish(libraryRevision = 1L)
+
+        val albums =
+            fixture
+                .snapshot()
+                .categories
+                .single { it.id == CarPlayCategoryId.Albums }
+                .entries
+                .filter { it.title == "Shared Title" }
+
+        assertEquals(
+            listOf("Alpha Records", "Zebra Records"),
+            albums.map { it.subtitle },
+        )
+        assertEquals(listOf("Track two"), albums[0].children.map { it.title })
+        assertEquals(listOf("Track one"), albums[1].children.map { it.title })
+
+        fixture.close()
+    }
+
+    @Test
+    fun taggedCompilationStaysOneAlbumWhileUntaggedTracksSplitByTrackArtist() =
+        runBlocking {
+            val fixture = Fixture()
+            fixture.addTracks(
+                track("one")
+                    .copy(
+                        artist = "Singer A",
+                        album = "Hits",
+                        albumArtist = "Various Artists",
+                        trackNumber = 2,
+                    ),
+                track("two")
+                    .copy(
+                        artist = "Singer B",
+                        album = "Hits",
+                        albumArtist = "Various Artists",
+                        trackNumber = 1,
+                    ),
+                track("three")
+                    .copy(
+                        artist = "Singer C",
+                        album = "Loose",
+                        albumArtist = null,
+                    ),
+                track("four")
+                    .copy(
+                        artist = "Singer D",
+                        album = "Loose",
+                        albumArtist = null,
+                    ),
+            )
+            fixture.publish(libraryRevision = 1L)
+
+            val albums =
+                fixture
+                    .snapshot()
+                    .categories
+                    .single { it.id == CarPlayCategoryId.Albums }
+                    .entries
+
+            val hits = albums.single { it.title == "Hits" }
+            assertEquals("Various Artists", hits.subtitle)
+            assertEquals(
+                listOf("Track two", "Track one"),
+                hits.children.map { it.title },
+            )
+            assertEquals(
+                listOf("Singer C", "Singer D"),
+                albums.filter { it.title == "Loose" }.map { it.subtitle },
+            )
+
+            fixture.close()
+        }
+
+    @Test
+    fun albumArtistChangeInvalidatesPublishedCatalogIdentity() = runBlocking {
+        val fixture = Fixture()
+        val original = track("one").copy(album = "Shared Title")
+        fixture.addTracks(original)
+        fixture.publish(libraryRevision = 1L)
+        val first = fixture.snapshot()
+
+        fixture.repository.upsertTrack(
+            original.copy(albumArtist = "Various Artists"))
+        fixture.publish(libraryRevision = 1L)
+        val second = fixture.snapshot()
+
+        assertTrue(second.revision > first.revision)
+        assertEquals(
+            "Various Artists",
+            second.categories
+                .single { it.id == CarPlayCategoryId.Albums }
+                .entries
+                .single { it.title == "Shared Title" }
+                .subtitle,
+        )
+
+        fixture.close()
+    }
 
     @Test
     fun playlistSelectionPreservesVisibleOrderAndDuplicateOccurrences() =
@@ -944,6 +1062,7 @@ class CarPlayFacadeTest {
             title = title,
             artist = artist,
             album = album,
+            albumArtist = albumArtist,
             durationMillis = durationMillis,
             source = audioSource,
         )

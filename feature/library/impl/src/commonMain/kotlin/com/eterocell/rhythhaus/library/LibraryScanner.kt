@@ -300,6 +300,7 @@ private fun AudioScanCandidate.toLibraryTrack(
                 ?: metadata?.lyrics?.trim()?.takeIf {
                     it.isNotBlank() && it.encodeToByteArray().size <= 512 * 1024
                 },
+        albumArtist = metadata?.albumArtist,
     )
 }
 

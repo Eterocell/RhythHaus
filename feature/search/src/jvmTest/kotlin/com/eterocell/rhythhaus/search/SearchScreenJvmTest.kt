@@ -31,6 +31,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -42,10 +43,13 @@ import com.eterocell.rhythhaus.theme.hausPalette
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 
 class SearchScreenJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -95,6 +99,7 @@ class SearchScreenJvmTest {
                                 onPlayTrack = { _, _ -> },
                                 onDismiss = {},
                                 playingIndicator = {},
+                                artworkLoader = { null },
                                 bottomContentPadding = 0.dp,
                             )
                         }
@@ -182,6 +187,7 @@ class SearchScreenJvmTest {
                                 onPlayTrack = { _, _ -> },
                                 onDismiss = {},
                                 playingIndicator = {},
+                                artworkLoader = { null },
                                 bottomContentPadding = 0.dp,
                             )
                         }
@@ -209,12 +215,14 @@ class SearchScreenJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun searchResultRendersEmbeddedArtwork() {
+    fun searchResultRendersPersistedArtworkLoadedById() {
         val previousLocale = Locale.getDefault()
         Locale.setDefault(Locale.ENGLISH)
         try {
             runComposeUiTest {
                 val artworkColor = Color(0xFFFF3355)
+                val artworkBytes = solidColorPng(artworkColor)
+                val requestedIds = CopyOnWriteArrayList<String>()
                 var playedTrackId: String? = null
                 setContent {
                     CompositionLocalProvider(
@@ -223,14 +231,7 @@ class SearchScreenJvmTest {
                     ) {
                         Box(Modifier.size(840.dp, 760.dp)) {
                             SearchContent(
-                                libraryTracks =
-                                    listOf(
-                                        searchTrack(
-                                            1,
-                                            artworkBytes =
-                                                solidColorPng(artworkColor),
-                                        ),
-                                    ),
+                                libraryTracks = listOf(searchTrack(1)),
                                 currentTrackId = null,
                                 isPlaying = false,
                                 labels =
@@ -250,6 +251,10 @@ class SearchScreenJvmTest {
                                 },
                                 onDismiss = {},
                                 playingIndicator = {},
+                                artworkLoader = { id ->
+                                    requestedIds += id
+                                    if (id == "song-1") artworkBytes else null
+                                },
                                 bottomContentPadding = 0.dp,
                             )
                         }
@@ -278,6 +283,8 @@ class SearchScreenJvmTest {
                                     .toArgb() == artworkColor.toArgb()
                             }
                 }
+                // List tracks stay BLOB-free: only the loader supplied bytes.
+                assertEquals(listOf("song-1"), requestedIds.toList())
 
                 // Artwork is decorative and adds no competing row action.
                 onNodeWithTag(
@@ -296,7 +303,7 @@ class SearchScreenJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun searchResultArtworkFallsBackWhenBytesMissingOrInvalid() {
+    fun searchResultArtworkFallsBackWhenLoaderMissingInvalidOrFailing() {
         val previousLocale = Locale.getDefault()
         Locale.setDefault(Locale.ENGLISH)
         try {
@@ -310,12 +317,9 @@ class SearchScreenJvmTest {
                             SearchContent(
                                 libraryTracks =
                                     listOf(
-                                        searchTrack(1, artworkBytes = null),
-                                        searchTrack(
-                                            2,
-                                            artworkBytes =
-                                                byteArrayOf(1, 2, 3, 4, 5),
-                                        ),
+                                        searchTrack(1),
+                                        searchTrack(2),
+                                        searchTrack(3),
                                     ),
                                 currentTrackId = null,
                                 isPlaying = false,
@@ -334,6 +338,15 @@ class SearchScreenJvmTest {
                                 onPlayTrack = { _, _ -> },
                                 onDismiss = {},
                                 playingIndicator = {},
+                                artworkLoader = { id ->
+                                    when (id) {
+                                        "song-2" -> byteArrayOf(1, 2, 3, 4, 5)
+                                        "song-3" ->
+                                            error(
+                                                "persisted artwork unreadable")
+                                        else -> null
+                                    }
+                                },
                                 bottomContentPadding = 0.dp,
                             )
                         }
@@ -349,14 +362,14 @@ class SearchScreenJvmTest {
                             useUnmergedTree = true,
                         )
                         .fetchSemanticsNodes()
-                        .size == 2
+                        .size == 3
                 }
                 onAllNodes(
                         hasTestTag(SearchNeutralArtworkTestTag),
                         useUnmergedTree = true,
                     )
-                    .assertCountEquals(2)
-                for (index in 0..1) {
+                    .assertCountEquals(3)
+                for (index in 0..2) {
                     onAllNodes(
                             hasTestTag(SearchNeutralArtworkTestTag),
                             useUnmergedTree = true,
@@ -370,6 +383,232 @@ class SearchScreenJvmTest {
                         useUnmergedTree = true,
                     )
                     .assertCountEquals(0)
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun searchArtworkLoadsOnlyComposedResultRows() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        try {
+            runComposeUiTest {
+                val requestedIds = CopyOnWriteArrayList<String>()
+                val tracks = List(40) { index -> searchTrack(index + 1) }
+                setContent {
+                    CompositionLocalProvider(
+                        LocalHausColors provides
+                            hausPalette(HausPaletteId.Moss, isDark = false),
+                    ) {
+                        Box(Modifier.size(840.dp, 760.dp)) {
+                            SearchContent(
+                                libraryTracks = tracks,
+                                currentTrackId = null,
+                                isPlaying = false,
+                                labels =
+                                    SearchSharedLabels(
+                                        clear = "Clear",
+                                        nowPlaying = "Now playing",
+                                    ),
+                                selectTrackLabel = { "Select $it" },
+                                selectionModeActive = false,
+                                selectedTrackIds = emptySet(),
+                                onStartSelection = {},
+                                onToggleSelection = {},
+                                onVisibleTrackIdsChanged = {},
+                                onScrollPositionChanged = { _, _ -> },
+                                onPlayTrack = { _, _ -> },
+                                onDismiss = {},
+                                playingIndicator = {},
+                                artworkLoader = { id ->
+                                    requestedIds += id
+                                    null
+                                },
+                                bottomContentPadding = 0.dp,
+                            )
+                        }
+                    }
+                }
+                waitForIdle()
+                onNode(hasSetTextAction()).performTextInput("Song")
+                waitForIdle()
+                waitUntil(timeoutMillis = 5_000) {
+                    requestedIds.isNotEmpty()
+                }
+
+                // The list keeps distant results out of composition, so their
+                // persisted artwork is not read.
+                assertTrue("song-40" !in requestedIds.toList())
+
+                onNode(hasScrollToIndexAction()).performScrollToIndex(39)
+                waitUntil(timeoutMillis = 5_000) {
+                    "song-40" in requestedIds.toList()
+                }
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun searchArtworkNeverPublishesStaleBytesToAnotherRow() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        try {
+            runComposeUiTest {
+                val staleColor = Color(0xFF22AA44)
+                val currentColor = Color(0xFF3344FF)
+                val releaseStaleLoad = CompletableDeferred<Unit>()
+                val staleBytes = solidColorPng(staleColor)
+                val currentBytes = solidColorPng(currentColor)
+                setContent {
+                    CompositionLocalProvider(
+                        LocalHausColors provides
+                            hausPalette(HausPaletteId.Moss, isDark = false),
+                    ) {
+                        Box(Modifier.size(840.dp, 760.dp)) {
+                            SearchContent(
+                                libraryTracks =
+                                    listOf(searchTrack(1), searchTrack(2)),
+                                currentTrackId = null,
+                                isPlaying = false,
+                                labels =
+                                    SearchSharedLabels(
+                                        clear = "Clear",
+                                        nowPlaying = "Now playing",
+                                    ),
+                                selectTrackLabel = { "Select $it" },
+                                selectionModeActive = false,
+                                selectedTrackIds = emptySet(),
+                                onStartSelection = {},
+                                onToggleSelection = {},
+                                onVisibleTrackIdsChanged = {},
+                                onScrollPositionChanged = { _, _ -> },
+                                onPlayTrack = { _, _ -> },
+                                onDismiss = {},
+                                playingIndicator = {},
+                                artworkLoader = { id ->
+                                    when (id) {
+                                        "song-1" -> {
+                                            releaseStaleLoad.await()
+                                            staleBytes
+                                        }
+                                        else -> currentBytes
+                                    }
+                                },
+                                bottomContentPadding = 0.dp,
+                            )
+                        }
+                    }
+                }
+                waitForIdle()
+                onNode(hasSetTextAction()).performTextInput("Song")
+                waitForIdle()
+
+                // Row 1 is reused for song-2 while song-1 is still loading.
+                onNode(hasSetTextAction()).performTextReplacement("Song 2")
+                waitUntil(timeoutMillis = 5_000) {
+                    onAllNodes(
+                            hasTestTag(SearchArtworkSlotTestTag),
+                            useUnmergedTree = true,
+                        )
+                        .fetchSemanticsNodes()
+                        .size == 1 &&
+                        onNodeWithTag(
+                                SearchArtworkSlotTestTag,
+                                useUnmergedTree = true,
+                            )
+                            .captureToImage()
+                            .toPixelMap()
+                            .let { pixels ->
+                                pixels[pixels.width / 2, pixels.height / 2]
+                                    .toArgb() == currentColor.toArgb()
+                            }
+                }
+                releaseStaleLoad.complete(Unit)
+                waitForIdle()
+                val rendered =
+                    onNodeWithTag(
+                            SearchArtworkSlotTestTag,
+                            useUnmergedTree = true,
+                        )
+                        .captureToImage()
+                        .toPixelMap()
+                        .let { pixels ->
+                            pixels[pixels.width / 2, pixels.height / 2].toArgb()
+                        }
+                assertEquals(currentColor.toArgb(), rendered)
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun searchArtworkCancelsLoadWhenRowLeavesComposition() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        try {
+            runComposeUiTest {
+                val loadStarted = CompletableDeferred<Unit>()
+                val loadCancelled = CompletableDeferred<Unit>()
+                val tracks =
+                    listOf(searchTrack(2).copy(title = "A Song")) +
+                        List(40) { index -> searchTrack(index + 100) }
+                setContent {
+                    CompositionLocalProvider(
+                        LocalHausColors provides
+                            hausPalette(HausPaletteId.Moss, isDark = false),
+                    ) {
+                        Box(Modifier.size(840.dp, 760.dp)) {
+                            SearchContent(
+                                libraryTracks = tracks,
+                                currentTrackId = null,
+                                isPlaying = false,
+                                labels =
+                                    SearchSharedLabels(
+                                        clear = "Clear",
+                                        nowPlaying = "Now playing",
+                                    ),
+                                selectTrackLabel = { "Select $it" },
+                                selectionModeActive = false,
+                                selectedTrackIds = emptySet(),
+                                onStartSelection = {},
+                                onToggleSelection = {},
+                                onVisibleTrackIdsChanged = {},
+                                onScrollPositionChanged = { _, _ -> },
+                                onPlayTrack = { _, _ -> },
+                                onDismiss = {},
+                                playingIndicator = {},
+                                artworkLoader = { id ->
+                                    if (id == "song-2") {
+                                        loadStarted.complete(Unit)
+                                        try {
+                                            awaitCancellation()
+                                        } finally {
+                                            loadCancelled.complete(Unit)
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                },
+                                bottomContentPadding = 0.dp,
+                            )
+                        }
+                    }
+                }
+                waitForIdle()
+                onNode(hasSetTextAction()).performTextInput("Song")
+                waitForIdle()
+                waitUntil(timeoutMillis = 5_000) { loadStarted.isCompleted }
+
+                onNode(hasScrollToIndexAction()).performScrollToIndex(30)
+                waitUntil(timeoutMillis = 5_000) { loadCancelled.isCompleted }
             }
         } finally {
             Locale.setDefault(previousLocale)
@@ -394,10 +633,7 @@ class SearchScreenJvmTest {
         }
     }
 
-    private fun searchTrack(
-        index: Int,
-        artworkBytes: ByteArray? = null,
-    ): LibraryTrack {
+    private fun searchTrack(index: Int): LibraryTrack {
         val id = "song-$index"
         return LibraryTrack(
             id,
@@ -414,7 +650,6 @@ class SearchScreenJvmTest {
             "scan",
             index.toLong(),
             index.toLong(),
-            artworkBytes = artworkBytes,
         )
     }
 }

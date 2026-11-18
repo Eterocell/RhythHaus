@@ -1,446 +1,463 @@
 package com.eterocell.rhythhaus.session
 
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import app.cash.sqldelight.db.SqlDriver
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import com.eterocell.rhythhaus.library.LibraryDatabase
+import com.eterocell.rhythhaus.library.RhythHausDatabase
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertSame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toOkioPath
 
 class PlaybackSessionStoreJvmTest {
     @Test
-    fun legacyMaximumLengthTrackRestoresAndNormalizesWithoutFailedSafe() =
+    fun savesTenThousandOneDuplicateTrackOccurrencesBeyondLegacyLimits() =
         runBlocking {
-            val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
-            withStore { store, dataStore ->
-                dataStore.edit { preferences ->
-                    preferences[QueueIdsKey] =
-                        PlaybackSessionCodec.encodeIds(listOf(trackId))
-                    preferences[CurrentIdKey] =
-                        PlaybackSessionCodec.encodeIds(listOf(trackId))
-                }
-                val processJob = SupervisorJob()
-                val controller = PlaybackController(FakePlaybackEngine())
-                val coordinator =
-                    PlaybackSessionCoordinator(
-                        controller = controller,
-                        store = store,
-                        processScope =
-                            CoroutineScope(Dispatchers.Default + processJob),
+            // One past PlaybackSessionCodec.maxIds, all referencing one track.
+            val queue =
+                (0 until PlaybackSessionCodec.maxIds + 1).map { index ->
+                    SessionQueueEntry(
+                        occurrenceId = "occurrence-$index",
+                        trackId = "track-1",
                     )
-                try {
-                    coordinator.restoreOnce(listOf(track(trackId)))
-
-                    assertEquals(
-                        PlaybackSessionPhase.Ready, coordinator.phase.value)
-                    val normalized = store.read()
-                    assertEquals(trackId, normalized.queue.single().trackId)
-                    assertEquals(
-                        normalized.queue.single().occurrenceId,
-                        normalized.currentOccurrenceId)
-                    assertEquals(null, dataStore.data.first()[QueueIdsKey])
-                    assertEquals(null, dataStore.data.first()[CurrentIdKey])
-                } finally {
-                    processJob.cancelAndJoin()
-                    controller.release()
                 }
-            }
-        }
-
-    @Test
-    fun genericMaximumLengthTrackCheckpointPersistsWithoutFailedSafe() =
-        runBlocking {
-            val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
-            withStore { store, _ ->
-                val processJob = SupervisorJob()
-                val controller = PlaybackController(FakePlaybackEngine())
-                val coordinator =
-                    PlaybackSessionCoordinator(
-                        controller = controller,
-                        store = store,
-                        processScope =
-                            CoroutineScope(Dispatchers.Default + processJob),
-                    )
-                try {
-                    coordinator.restoreOnce(emptyList())
-                    controller.setQueue(
-                        listOf(track(trackId)), selectedTrackId = trackId)
-                    coordinator.flush()
-
-                    assertEquals(
-                        PlaybackSessionPhase.Ready, coordinator.phase.value)
-                    val persisted = store.read()
-                    assertEquals(trackId, persisted.queue.single().trackId)
-                    assertEquals(
-                        persisted.queue.single().occurrenceId,
-                        persisted.currentOccurrenceId)
-                    assertEquals(
-                        true,
-                        persisted.queue.single().occurrenceId.length <=
-                            PlaybackSessionCodec.maxIdCharacters)
-                } finally {
-                    processJob.cancelAndJoin()
-                    controller.release()
-                }
-            }
-        }
-
-    @Test
-    fun newStoreRoundTripKeepsOrderedOccurrenceTrackPairsAndUsesOneQueueValue() =
-        runBlocking {
-            withStore { store, dataStore ->
-                val snapshot =
-                    PlaybackSessionSnapshot(
-                        queue =
-                            listOf(
-                                SessionQueueEntry("entry-1", "track-a"),
-                                SessionQueueEntry("entry-2", "track-a"),
-                            ),
-                        currentOccurrenceId = "entry-2",
-                    )
-
+            val snapshot =
+                PlaybackSessionSnapshot(
+                    queue = queue,
+                    currentOccurrenceId = "occurrence-10000",
+                    positionMillis = 42L,
+                    repeatMode = RepeatMode.RepeatPlaylist,
+                    shuffleMode = ShuffleMode.On,
+                )
+            withDatabase { database, _ ->
+                val store = newStore(database)
                 store.save(snapshot)
 
-                assertEquals(snapshot, store.read())
-                val preferences = dataStore.data.first()
-                assertEquals(
-                    PlaybackSessionCodec.encodeQueue(snapshot.queue),
-                    preferences[QueueEntriesKey])
-                assertEquals(null, preferences[QueueIdsKey])
-                assertEquals(null, preferences[CurrentIdKey])
+                val restored = store.read()
+                assertEquals(queue, restored.queue)
+                assertEquals("occurrence-10000", restored.currentOccurrenceId)
+                assertEquals("track-1", restored.currentTrackId)
+                assertEquals(42L, restored.positionMillis)
+                assertEquals(RepeatMode.RepeatPlaylist, restored.repeatMode)
+                assertEquals(ShuffleMode.On, restored.shuffleMode)
             }
         }
 
     @Test
-    fun legacyStoreReadNormalizesDeterministicOccurrencesAndNextSaveRemovesLegacyKeys() =
+    fun restoresOccurrenceNearQueueEndAfterRestartThenPersistsSmallQueue() =
         runBlocking {
-            withStore { store, dataStore ->
-                dataStore.edit { preferences ->
-                    preferences[QueueIdsKey] =
-                        PlaybackSessionCodec.encodeIds(
-                            listOf("track-a", "track-b"))
-                    preferences[CurrentIdKey] =
-                        PlaybackSessionCodec.encodeIds(listOf("track-b"))
+            val queue =
+                (0 until PlaybackSessionCodec.maxIds + 1).map { index ->
+                    SessionQueueEntry("occurrence-$index", "track-1")
                 }
+            val legacySource = FakeLegacySource()
+            withDatabase { database, reopen ->
+                newStore(database, legacySource)
+                    .save(
+                        PlaybackSessionSnapshot(
+                            queue = queue,
+                            currentOccurrenceId = "occurrence-10000",
+                            positionMillis = 9_000L,
+                        ),
+                    )
 
-                val normalized = store.read()
+                val reopened = newStore(reopen(), legacySource)
+                val restored = reopened.read()
+                assertEquals(queue, restored.queue)
+                assertEquals("occurrence-10000", restored.currentOccurrenceId)
+                assertEquals(9_000L, restored.positionMillis)
+                val controller = PlaybackController(FakePlaybackEngine())
+                try {
+                    controller.restoreSession(
+                        restored,
+                        listOf(
+                            PlayableTrack(
+                                "track-1",
+                                "Repeated",
+                                "Artist",
+                                null,
+                                15_000L,
+                                AudioSource.FilePath("track.flac"))))
+                    assertEquals(
+                        PlaybackStatus.Paused, controller.state.value.status)
+                    assertEquals(restored, controller.sessionSnapshot())
+                } finally {
+                    controller.release()
+                }
+                // The import marker survives the restart.
+                assertEquals(1, legacySource.reads)
 
-                assertEquals(
+                val smallQueue =
+                    listOf(
+                        SessionQueueEntry("small-0", "track-2"),
+                        SessionQueueEntry("small-1", "track-3"),
+                    )
+                reopened.save(
+                    PlaybackSessionSnapshot(
+                        queue = smallQueue,
+                        currentOccurrenceId = "small-1",
+                        positionMillis = 5L,
+                    ),
+                )
+
+                val afterSmallSave = newStore(reopen(), legacySource).read()
+                assertEquals(smallQueue, afterSmallSave.queue)
+                assertEquals("small-1", afterSmallSave.currentOccurrenceId)
+                assertEquals("track-3", afterSmallSave.currentTrackId)
+                assertEquals(5L, afterSmallSave.positionMillis)
+            }
+        }
+
+    @Test
+    fun importsLegacySessionExactlyOnceAcrossReadsAndRestarts() = runBlocking {
+        val legacy =
+            PlaybackSessionSnapshot(
+                queue =
                     listOf(
                         SessionQueueEntry("legacy-0", "track-a"),
                         SessionQueueEntry("legacy-1", "track-b"),
                     ),
-                    normalized.queue,
-                )
-                assertEquals("legacy-1", normalized.currentOccurrenceId)
-                store.save(normalized)
-                val preferences = dataStore.data.first()
-                assertEquals(null, preferences[QueueIdsKey])
-                assertEquals(null, preferences[CurrentIdKey])
-                assertEquals(
-                    PlaybackSessionCodec.encodeQueue(normalized.queue),
-                    preferences[QueueEntriesKey])
-            }
+                currentOccurrenceId = "legacy-1",
+                positionMillis = 500L,
+                repeatMode = RepeatMode.RepeatOne,
+                shuffleMode = ShuffleMode.On,
+            )
+        val legacySource = FakeLegacySource(legacy)
+        withDatabase { database, reopen ->
+            val store = newStore(database, legacySource)
+            assertEquals(legacy, store.read())
+            assertEquals(1, legacySource.reads)
+            assertEquals(legacy, store.read())
+            assertEquals(1, legacySource.reads)
+
+            assertEquals(legacy, newStore(reopen(), legacySource).read())
+            assertEquals(1, legacySource.reads)
         }
+    }
 
     @Test
-    fun defaultsToEmptySnapshotAndPersistsEveryField() = runBlocking {
-        withStore { store, _ ->
+    fun importsEmptyLegacySessionOnceAndNeverReimports() = runBlocking {
+        val legacySource = FakeLegacySource()
+        withDatabase { database, reopen ->
+            val store = newStore(database, legacySource)
             assertEquals(PlaybackSessionSnapshot(), store.read())
+            assertEquals(1, legacySource.reads)
 
-            val snapshot =
+            val saved =
                 PlaybackSessionSnapshot(
-                    queueIds = listOf("one", "two:2", "🎧"),
-                    currentTrackId = "two:2",
-                    positionMillis = 12_345L,
-                    repeatMode = RepeatMode.RepeatPlaylist,
-                    shuffleMode = ShuffleMode.On,
+                    queue =
+                        listOf(SessionQueueEntry("occurrence-0", "track-1")),
+                    currentOccurrenceId = "occurrence-0",
                 )
+            store.save(saved)
+            assertEquals(saved, store.read())
+            assertEquals(1, legacySource.reads)
+
+            assertEquals(saved, newStore(reopen(), legacySource).read())
+            assertEquals(1, legacySource.reads)
+        }
+    }
+
+    @Test
+    fun retriesImportWhenInterruptedBeforeMarkerCommit() = runBlocking {
+        val legacy =
+            PlaybackSessionSnapshot(
+                queue = listOf(SessionQueueEntry("legacy-0", "track-a")),
+                currentOccurrenceId = "legacy-0",
+                positionMillis = 77L,
+            )
+        val legacySource = FakeLegacySource(legacy)
+        lateinit var driver: SqlDriver
+        withDatabase(onOpen = { driver = it }) { database, reopen ->
+            driver.execute(
+                null,
+                """
+                CREATE TRIGGER interrupt_import BEFORE UPDATE OF legacyImportCompleted ON playback_session_meta
+                WHEN NEW.legacyImportCompleted = 1
+                BEGIN SELECT RAISE(ABORT, 'interrupt import'); END
+                """
+                    .trimIndent(),
+                0)
+            kotlin.test.assertFails { newStore(database, legacySource).read() }
+            assertEquals(
+                emptyList(),
+                database.playbackSessionQueries
+                    .selectQueueEntries()
+                    .executeAsList())
+            assertEquals(
+                null,
+                database.playbackSessionQueries
+                    .selectSessionMeta()
+                    .executeAsOneOrNull())
+            driver.execute(null, "DROP TRIGGER interrupt_import", 0)
+            val store = newStore(reopen(), legacySource)
+            assertEquals(legacy, store.read())
+            assertEquals(legacy, store.read())
+            assertEquals(2, legacySource.reads)
+        }
+    }
+
+    @Test
+    fun savePositionUpdatesOnlyMatchingCurrentOccurrence() = runBlocking {
+        val queue =
+            listOf(
+                SessionQueueEntry("occurrence-0", "track-1"),
+                SessionQueueEntry("occurrence-1", "track-2"),
+            )
+        val snapshot =
+            PlaybackSessionSnapshot(
+                queue = queue,
+                currentOccurrenceId = "occurrence-0",
+                positionMillis = 10L,
+                repeatMode = RepeatMode.RepeatOne,
+                shuffleMode = ShuffleMode.On,
+            )
+        withDatabase { database, _ ->
+            val store = newStore(database)
             store.save(snapshot)
 
-            assertEquals(snapshot, store.read())
+            store.savePosition("occurrence-0", 1_234L)
+            assertEquals(snapshot.copy(positionMillis = 1_234L), store.read())
+
+            // A stale occurrence never moves the persisted position.
+            store.savePosition("occurrence-1", 9_999L)
+            assertEquals(snapshot.copy(positionMillis = 1_234L), store.read())
+
+            store.savePosition("occurrence-0", -5L)
+            assertEquals(snapshot.copy(positionMillis = 0L), store.read())
+
+            // A structural save wins over a position update for the
+            // occurrence that is no longer current.
+            store.save(snapshot.copy(currentOccurrenceId = "occurrence-1"))
+            store.savePosition("occurrence-0", 123L)
+            val afterStructuralSave = store.read()
+            assertEquals(
+                "occurrence-1", afterStructuralSave.currentOccurrenceId)
+            assertEquals(queue, afterStructuralSave.queue)
+            assertEquals(
+                snapshot.positionMillis, afterStructuralSave.positionMillis)
         }
     }
 
     @Test
-    fun negativePositionIsPersistedAsZero() = runBlocking {
-        withStore { store, _ ->
-            store.save(
+    fun positionAndModeChangesDoNotReplaceOccurrenceRows() = runBlocking {
+        lateinit var driver: SqlDriver
+        withDatabase(onOpen = { driver = it }) { database, _ ->
+            val store = newStore(database)
+            val saved =
                 PlaybackSessionSnapshot(
-                    queueIds = listOf("one"),
-                    currentTrackId = "one",
-                    positionMillis = -1L,
-                ),
+                    queue = listOf(SessionQueueEntry("one", "track")),
+                    currentOccurrenceId = "one",
+                )
+            store.save(saved)
+            driver.execute(
+                null,
+                """
+                CREATE TRIGGER reject_queue_rewrite BEFORE DELETE ON playback_session_queue
+                BEGIN SELECT RAISE(ABORT, 'unchanged queue rewritten'); END
+                """
+                    .trimIndent(),
+                0)
+            store.save(saved.copy(repeatMode = RepeatMode.RepeatOne))
+            for (second in 1L..60L) store.savePosition("one", second * 1_000L)
+            assertEquals(
+                saved.copy(
+                    repeatMode = RepeatMode.RepeatOne,
+                    positionMillis = 60_000L),
+                store.read())
+        }
+    }
+
+    @Test
+    fun rejectedStructuralSaveLeavesPersistedSessionUntouched() = runBlocking {
+        val saved =
+            PlaybackSessionSnapshot(
+                queue =
+                    listOf(
+                        SessionQueueEntry("occurrence-0", "track-1"),
+                        SessionQueueEntry("occurrence-1", "track-2"),
+                    ),
+                currentOccurrenceId = "occurrence-1",
+                positionMillis = 8L,
             )
-
-            assertEquals(0L, store.read().positionMillis)
-        }
-    }
-
-    @Test
-    fun nonEmptyQueueWithNoCurrentTrackRoundTripsAllOtherFields() =
-        runBlocking {
-            withStore { store, _ ->
-                val snapshot =
-                    PlaybackSessionSnapshot(
-                        queueIds = listOf("one", "two"),
-                        currentTrackId = null,
-                        positionMillis = 8_765L,
-                        repeatMode = RepeatMode.StopAfterCurrent,
-                        shuffleMode = ShuffleMode.On,
-                    )
-
-                store.save(snapshot)
-
-                assertEquals(snapshot, store.read())
-            }
-        }
-
-    @Test
-    fun invalidSaveKeepsPriorDurableSnapshot() = runBlocking {
-        withStore { store, _ ->
-            val valid =
-                PlaybackSessionSnapshot(
-                    queueIds = listOf("one"), currentTrackId = "one")
-            store.save(valid)
+        withDatabase { database, _ ->
+            val store = newStore(database)
+            store.save(saved)
 
             assertFailsWith<IllegalArgumentException> {
                 store.save(
-                    valid.copy(
+                    saved.copy(
                         queue =
-                            List(PlaybackSessionCodec.maxIds + 1) { index ->
-                                SessionQueueEntry(
-                                    "entry-$index", "track-$index")
-                            },
-                    ),
-                )
+                            listOf(
+                                SessionQueueEntry("duplicate", "track-1"),
+                                SessionQueueEntry("duplicate", "track-2"),
+                            ),
+                    ))
             }
-
-            assertEquals(valid, store.read())
-        }
-    }
-
-    @Test
-    fun invalidCurrentIdSaveKeepsPriorDurableSnapshot() = runBlocking {
-        withStore { store, _ ->
-            val valid =
-                PlaybackSessionSnapshot(
-                    queueIds = listOf("one"), currentTrackId = "one")
-            store.save(valid)
-
             assertFailsWith<IllegalArgumentException> {
-                store.save(valid.copy(currentOccurrenceId = "missing"))
+                store.save(saved.copy(currentOccurrenceId = "not-queued"))
             }
 
-            assertEquals(valid, store.read())
+            assertEquals(saved, store.read())
+            assertEquals(
+                2,
+                database.playbackSessionQueries
+                    .selectQueueEntries()
+                    .executeAsList()
+                    .size,
+            )
         }
     }
 
     @Test
-    fun malformedQueueFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[QueueEntriesKey] = "2:a" }
-        }
-    }
-
-    @Test
-    fun truncatedCurrentEncodingFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[CurrentOccurrenceIdKey] = "2:a" }
-        }
-    }
-
-    @Test
-    fun twoIdCurrentEncodingFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit {
-                it[CurrentOccurrenceIdKey] =
-                    PlaybackSessionCodec.encodeIds(listOf("one", "two"))
-            }
-        }
-    }
-
-    @Test
-    fun currentIdMissingFromQueueFallsBackToFullDefaultSnapshot() =
+    fun importsOccurrencePreferencesWithoutCollapsingRepeatedTrackIds() =
         runBlocking {
-            assertMalformedFieldFallsBack { dataStore ->
-                dataStore.edit {
-                    it[CurrentOccurrenceIdKey] =
-                        PlaybackSessionCodec.encodeIds(listOf("missing"))
+            val entries =
+                listOf(
+                    SessionQueueEntry("first", "track"),
+                    SessionQueueEntry("second", "track"))
+            withDataStore(
+                newPreferencesFile("rhythhaus-session-occurrences")) {
+                    preferences ->
+                    preferences.edit {
+                        it[stringPreferencesKey("queue_entries")] =
+                            PlaybackSessionCodec.encodeQueue(entries)
+                        it[stringPreferencesKey("current_occurrence_id")] =
+                            PlaybackSessionCodec.encodeIds(listOf("second"))
+                        it[PositionKey] = 1234L
+                    }
+                    withDatabase { database, _ ->
+                        val imported =
+                            SqlDelightPlaybackSessionStore(
+                                    database,
+                                    DataStorePlaybackSessionLegacySource(
+                                        preferences))
+                                .read()
+                        assertEquals(
+                            PlaybackSessionSnapshot(
+                                queue = entries,
+                                currentOccurrenceId = "second",
+                                positionMillis = 1234L),
+                            imported)
+                    }
+                }
+        }
+
+    @Test
+    fun importsLegacyPreferencesSessionWithNormalizedOccurrences() =
+        runBlocking {
+            val file = newPreferencesFile("rhythhaus-playback-legacy")
+            withDataStore(file) { dataStore ->
+                dataStore.edit { preferences ->
+                    preferences[QueueIdsKey] =
+                        PlaybackSessionCodec.encodeIds(
+                            listOf("track-a", "track-b", "track-c"))
+                    preferences[CurrentIdKey] =
+                        PlaybackSessionCodec.encodeIds(listOf("track-b"))
+                    preferences[PositionKey] = 321L
+                    preferences[RepeatModeKey] = RepeatMode.RepeatOne.name
+                    preferences[ShuffleModeKey] = ShuffleMode.On.name
+                }
+
+                withDatabase { database, _ ->
+                    val store =
+                        SqlDelightPlaybackSessionStore(
+                            database = database,
+                            legacySource =
+                                DataStorePlaybackSessionLegacySource(dataStore),
+                        )
+
+                    val imported = store.read()
+                    assertEquals(
+                        listOf(
+                            SessionQueueEntry("legacy-0", "track-a"),
+                            SessionQueueEntry("legacy-1", "track-b"),
+                            SessionQueueEntry("legacy-2", "track-c"),
+                        ),
+                        imported.queue,
+                    )
+                    assertEquals("legacy-1", imported.currentOccurrenceId)
+                    assertEquals("track-b", imported.currentTrackId)
+                    assertEquals(321L, imported.positionMillis)
+                    assertEquals(RepeatMode.RepeatOne, imported.repeatMode)
+                    assertEquals(ShuffleMode.On, imported.shuffleMode)
                 }
             }
         }
 
-    @Test
-    fun invalidPositionFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[PositionKey] = -1L }
+    private class FakeLegacySource(
+        private val snapshot: PlaybackSessionSnapshot =
+            PlaybackSessionSnapshot(),
+    ) : PlaybackSessionLegacySnapshotSource {
+        var reads: Int = 0
+            private set
+
+        override suspend fun read(): PlaybackSessionSnapshot {
+            reads++
+            return snapshot
         }
     }
 
-    @Test
-    fun invalidRepeatModeFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[RepeatModeKey] = "Forever" }
-        }
-    }
+    private fun newStore(
+        database: RhythHausDatabase,
+        legacySource: PlaybackSessionLegacySnapshotSource = FakeLegacySource(),
+    ): PlaybackSessionStore =
+        SqlDelightPlaybackSessionStore(
+            database = database,
+            legacySource = legacySource,
+        )
 
-    @Test
-    fun invalidShuffleModeFallsBackToFullDefaultSnapshot() = runBlocking {
-        assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[ShuffleModeKey] = "Sometimes" }
-        }
-    }
-
-    @Test
-    fun corruptPreferencesFileRecoversToDefaultAndRemainsUsable() =
-        runBlocking {
-            val tempFile = newPreferencesFile("rhythhaus-playback-corrupt")
-            tempFile.writeBytes(byteArrayOf(0x01, 0x02, 0x03, 0x7f))
-            withDataStore(
-                file = tempFile,
-                corruptionHandler =
-                    ReplaceFileCorruptionHandler { emptyPreferences() },
-            ) { dataStore ->
-                val store = DataStorePlaybackSessionStore(dataStore)
-                assertEquals(PlaybackSessionSnapshot(), store.read())
-
-                val recovered =
-                    PlaybackSessionSnapshot(
-                        queueIds = listOf("recovered"),
-                        currentTrackId = "recovered",
-                        positionMillis = 99L,
-                        repeatMode = RepeatMode.RepeatOne,
-                        shuffleMode = ShuffleMode.On,
-                    )
-                store.save(recovered)
-
-                assertEquals(recovered, store.read())
-            }
-        }
-
-    @Test
-    fun playbackStorageDoesNotReadOrOverwriteThemePreferences() = runBlocking {
-        val themeFile = newPreferencesFile("rhythhaus-theme-isolation")
-        val playbackFile = newPreferencesFile("rhythhaus-playback-isolation")
-        withDataStores(themeFile, playbackFile) {
-            themeDataStore,
-            playbackDataStore ->
-            themeDataStore.edit { preferences ->
-                preferences[ThemeModeKey] = "dark"
-                preferences[QueueIdsKey] =
-                    PlaybackSessionCodec.encodeIds(listOf("theme-file-track"))
-            }
-            val playbackStore = DataStorePlaybackSessionStore(playbackDataStore)
-
-            assertEquals(PlaybackSessionSnapshot(), playbackStore.read())
-
-            playbackStore.save(
-                PlaybackSessionSnapshot(
-                    queueIds = listOf("playback-track"),
-                    currentTrackId = "playback-track",
-                ),
-            )
-
-            val themePreferences = themeDataStore.data.first()
-            assertEquals("dark", themePreferences[ThemeModeKey])
-            assertEquals(
-                PlaybackSessionCodec.encodeIds(listOf("theme-file-track")),
-                themePreferences[QueueIdsKey],
-            )
-        }
-    }
-
-    @Test
-    fun jvmFactoryUsesExactFileNameAndOneLazyDataStoreInstance() = runBlocking {
-        val homeDirectory =
-            Files.createTempDirectory("rhythhaus-playback-home").toFile()
-        val job = SupervisorJob()
+    private suspend fun withDatabase(
+        onOpen: (SqlDriver) -> Unit = {},
+        block: suspend (RhythHausDatabase, () -> RhythHausDatabase) -> Unit,
+    ) {
+        val file =
+            Files.createTempFile("rhythhaus-playback-session", ".db")
+                .toFile()
+                .also(File::delete)
+        var libraryDatabase = LibraryDatabase(file)
         try {
-            val factory =
-                JvmPlaybackSessionStoreFactory(
-                    homeDirectory = homeDirectory,
-                    scope = CoroutineScope(Dispatchers.IO + job),
-                )
-
-            assertEquals(
-                File(
-                    homeDirectory,
-                    "Library/Application Support/RhythHaus/playback_session.preferences_pb"),
-                factory.preferenceFile,
-            )
-            assertSame(factory.dataStore, factory.dataStore)
-            assertEquals(
-                PlaybackSessionSnapshot(), factory.createStore().read())
+            onOpen(libraryDatabase.driver)
+            block(libraryDatabase.database) {
+                libraryDatabase.driver.close()
+                libraryDatabase = LibraryDatabase(file)
+                libraryDatabase.database
+            }
         } finally {
-            job.cancelAndJoin()
-            homeDirectory.deleteRecursively()
-        }
-    }
-
-    private suspend fun assertMalformedFieldFallsBack(
-        corrupt: suspend (DataStore<Preferences>) -> Unit,
-    ) {
-        val valid =
-            PlaybackSessionSnapshot(
-                queueIds = listOf("one", "two"),
-                currentTrackId = "two",
-                positionMillis = 42L,
-                repeatMode = RepeatMode.RepeatOne,
-                shuffleMode = ShuffleMode.On,
-            )
-
-        withStore { store, dataStore ->
-            store.save(valid)
-            corrupt(dataStore)
-
-            assertEquals(PlaybackSessionSnapshot(), store.read())
-        }
-    }
-
-    private suspend fun withStore(
-        block:
-            suspend (
-                DataStorePlaybackSessionStore, DataStore<Preferences>) -> Unit,
-    ) {
-        val tempFile = newPreferencesFile("rhythhaus-playback-session")
-        withDataStore(tempFile) { dataStore ->
-            block(DataStorePlaybackSessionStore(dataStore), dataStore)
+            libraryDatabase.driver.close()
+            file.delete()
         }
     }
 
     private suspend fun withDataStore(
         file: File,
-        corruptionHandler: ReplaceFileCorruptionHandler<Preferences>? = null,
         block: suspend (DataStore<Preferences>) -> Unit,
     ) {
-        val job = SupervisorJob()
+        val job: Job = SupervisorJob()
         try {
             val dataStore =
                 PreferenceDataStoreFactory.createWithPath(
-                    corruptionHandler = corruptionHandler,
+                    corruptionHandler = null,
                     migrations = emptyList(),
                     scope = CoroutineScope(Dispatchers.IO + job),
                     produceFile = { file.toOkioPath() },
@@ -452,58 +469,14 @@ class PlaybackSessionStoreJvmTest {
         }
     }
 
-    private suspend fun withDataStores(
-        firstFile: File,
-        secondFile: File,
-        block: suspend (DataStore<Preferences>, DataStore<Preferences>) -> Unit,
-    ) {
-        val firstJob = SupervisorJob()
-        val secondJob = SupervisorJob()
-        try {
-            val first = testPreferencesDataStore(firstFile, firstJob)
-            val second = testPreferencesDataStore(secondFile, secondJob)
-            block(first, second)
-        } finally {
-            firstJob.cancelAndJoin()
-            secondJob.cancelAndJoin()
-            firstFile.delete()
-            secondFile.delete()
-        }
-    }
-
-    private fun testPreferencesDataStore(
-        file: File,
-        job: Job
-    ): DataStore<Preferences> =
-        PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = null,
-            migrations = emptyList(),
-            scope = CoroutineScope(Dispatchers.IO + job),
-            produceFile = { file.toOkioPath() },
-        )
-
     private fun newPreferencesFile(prefix: String): File =
         File.createTempFile(prefix, ".preferences_pb").apply { delete() }
 
-    private fun track(id: String): PlayableTrack =
-        PlayableTrack(
-            id = id,
-            title = "Boundary track",
-            artist = "Artist",
-            album = "Album",
-            durationMillis = 1_000L,
-            source = AudioSource.FilePath("/boundary.mp3"),
-        )
-
     private companion object {
-        val QueueEntriesKey = stringPreferencesKey("queue_entries")
-        val CurrentOccurrenceIdKey =
-            stringPreferencesKey("current_occurrence_id")
         val QueueIdsKey = stringPreferencesKey("queue_ids")
         val CurrentIdKey = stringPreferencesKey("current_id")
         val PositionKey = longPreferencesKey("position_millis")
         val RepeatModeKey = stringPreferencesKey("repeat_mode")
         val ShuffleModeKey = stringPreferencesKey("shuffle_mode")
-        val ThemeModeKey = stringPreferencesKey("theme_mode")
     }
 }

@@ -157,6 +157,7 @@ class TrackPlayHistoryDatabaseTest {
             title = title,
             artist = "Artist",
             album = "Album",
+            albumArtist = null,
             durationMillis = null,
             sizeBytes = null,
             modifiedAtEpochMillis = null,

@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -50,6 +51,9 @@ import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.search.generated.resources.Res
 import rhythhaus.feature.search.generated.resources.search_blank_query_guidance
@@ -121,6 +125,9 @@ public data class SearchSharedLabels(
  *   or null when editing is unavailable.
  * @param playingIndicator Composes Shared-owned current-playing indication in a
  *   playing row.
+ * @param artworkLoader Loads persisted artwork bytes for a composed result's
+ *   track ID. Rows request it lazily, so only visible results load, and every
+ *   absent, failed, or cancelled load keeps the neutral decorative fallback.
  * @param bottomContentPadding Reserved trailing list space for Shared shell
  *   chrome.
  * @param modifier Modifier applied to the Search root.
@@ -149,6 +156,7 @@ public fun SearchContent(
             selectedTrack: LibraryTrack) -> Unit,
     onDismiss: () -> Unit,
     playingIndicator: @Composable () -> Unit,
+    artworkLoader: suspend (String) -> ByteArray?,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
     initialFirstVisibleItemIndex: Int = 0,
@@ -347,6 +355,8 @@ public fun SearchContent(
                                                             onEditTrackMetadata,
                                                         playingIndicator =
                                                             playingIndicator,
+                                                        artworkLoader =
+                                                            artworkLoader,
                                                     )
                                                 }
                                             item {
@@ -400,6 +410,7 @@ internal fun SearchResultRow(
     onStartSelection: () -> Unit,
     onEditTrackMetadata: ((String) -> Unit)?,
     playingIndicator: @Composable () -> Unit,
+    artworkLoader: suspend (String) -> ByteArray?,
 ) {
     val selectionLabel = selectTrackLabel(track.title)
     var moreActionsExpanded by remember(track.id) { mutableStateOf(false) }
@@ -417,20 +428,7 @@ internal fun SearchResultRow(
         onSelect = onStartSelection,
         selectLabel = selectionLabel,
         playingLabel = nowPlayingLabel,
-        artwork = {
-            ArtworkImage(
-                artworkBytes = track.artworkBytes,
-                // Empty description keeps the thumbnail decorative so the
-                // row's title and actions stay the accessible surface.
-                contentDescription = "",
-                role = ArtworkImageRole.Thumbnail,
-                modifier =
-                    Modifier.fillMaxSize()
-                        .testTag(SearchArtworkSlotTestTag),
-                contentScale = ContentScale.Crop,
-                fallback = { SearchNeutralArtwork() },
-            )
-        },
+        artwork = { SearchResultArtwork(track, artworkLoader) },
         indicator = { if (isPlaying) playingIndicator() },
         trailing = {
             if (hasMoreActions) {
@@ -498,6 +496,57 @@ internal fun SearchResultRow(
         },
     )
 }
+
+/**
+ * Loads artwork for one composed result row. Lazy list disposal cancels the
+ * effect, and the state is remembered per track ID, so a scrolled-away or
+ * replaced row can never publish bytes for a different row.
+ */
+@Composable
+private fun SearchResultArtwork(
+    track: LibraryTrack,
+    artworkLoader: suspend (String) -> ByteArray?,
+) {
+    val currentLoader by rememberUpdatedState(artworkLoader)
+    var artworkBytes by
+        remember(track.id, track.artworkBytes) {
+            mutableStateOf(track.artworkBytes)
+        }
+    LaunchedEffect(track.id, track.artworkBytes) {
+        if (artworkBytes == null) {
+            artworkBytes =
+                withContext(Dispatchers.Default) {
+                    loadSearchArtwork(track.id, currentLoader)
+                }
+        }
+    }
+    ArtworkImage(
+        artworkBytes = artworkBytes,
+        // Empty description keeps the thumbnail decorative so the row's title
+        // and actions stay the accessible surface.
+        contentDescription = "",
+        role = ArtworkImageRole.Thumbnail,
+        modifier = Modifier.fillMaxSize().testTag(SearchArtworkSlotTestTag),
+        contentScale = ContentScale.Crop,
+        fallback = { SearchNeutralArtwork() },
+    )
+}
+
+/**
+ * Resolves one row's persisted artwork, treating a loader or decode failure as
+ * absent artwork while letting cancellation propagate to the owning row.
+ */
+internal suspend fun loadSearchArtwork(
+    trackId: String,
+    artworkLoader: suspend (String) -> ByteArray?,
+): ByteArray? =
+    try {
+        artworkLoader(trackId)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        null
+    }
 
 @Composable
 private fun SearchNeutralArtwork() {

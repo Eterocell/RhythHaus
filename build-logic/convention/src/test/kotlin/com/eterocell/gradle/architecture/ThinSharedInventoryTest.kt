@@ -106,6 +106,8 @@ class ThinSharedInventoryTest {
         "src/commonMain/kotlin/com/eterocell/rhythhaus/playlistbackup/PlatformPlaylistBackupDocuments.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStore.kt",
+        "src/commonMain/kotlin/com/eterocell/rhythhaus/session/SqlDelightPlaybackSessionStore.kt",
+        "src/commonMain/kotlin/com/eterocell/rhythhaus/session/DataStorePlaybackSessionLegacySource.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStore.kt",
         // androidMain
         "src/androidMain/kotlin/com/eterocell/rhythhaus/playlistbackup/PlatformPlaylistBackupDocuments.android.kt",

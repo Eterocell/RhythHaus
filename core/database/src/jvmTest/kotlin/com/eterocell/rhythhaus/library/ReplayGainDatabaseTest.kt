@@ -111,6 +111,7 @@ class ReplayGainDatabaseTest {
             title = "Song",
             artist = "Artist",
             album = "Album",
+            albumArtist = null,
             durationMillis = 123_000L,
             sizeBytes = 100L,
             modifiedAtEpochMillis = 1L,

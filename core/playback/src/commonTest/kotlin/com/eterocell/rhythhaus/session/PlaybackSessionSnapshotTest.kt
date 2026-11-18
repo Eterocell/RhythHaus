@@ -185,7 +185,7 @@ class PlaybackSessionSnapshotTest {
     }
 
     @Test
-    fun checkpointModelsExposeCompleteSnapshotsAndProgressKey() {
+    fun checkpointModelsSeparateStructuralSnapshotsFromPositions() {
         val snapshot =
             PlaybackSessionSnapshot(
                 queueIds = listOf("one"),
@@ -194,17 +194,19 @@ class PlaybackSessionSnapshotTest {
                 repeatMode = RepeatMode.RepeatPlaylist,
                 shuffleMode = ShuffleMode.On,
             )
-        val key =
-            ProgressCheckpointKey(
-                generation = 4L,
-                currentOccurrenceId = snapshot.currentOccurrenceId!!,
-                secondBucket = 1L)
 
         assertEquals(snapshot, PlaybackCheckpoint.Immediate(snapshot).snapshot)
-        assertEquals(key, PlaybackCheckpoint.PlayingProgress(key, snapshot).key)
-        assertEquals(
-            snapshot,
-            PlaybackCheckpoint.PlayingProgress(key, snapshot).snapshot)
+        val position =
+            PlaybackCheckpoint.Position(
+                generation = 4L,
+                currentOccurrenceId = "one",
+                positionMillis = 1_250L,
+                revision = 9L,
+            )
+        assertEquals(4L, position.generation)
+        assertEquals("one", position.currentOccurrenceId)
+        assertEquals(1_250L, position.positionMillis)
+        assertEquals(9L, position.revision)
     }
 
     private fun exactEncodedSizeIds(): List<String> {

@@ -3,7 +3,6 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +21,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.AlbumIdentity
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
@@ -116,7 +116,7 @@ public fun LibraryHomeContent(
     onBrowseModeChange: (BrowseMode) -> Unit,
     onClearLibrary: () -> Unit,
     onCancelScan: () -> Unit,
-    onOpenAlbum: (String) -> Unit,
+    onOpenAlbum: (AlbumIdentity) -> Unit,
     onOpenArtist: (String) -> Unit,
     onPlayTrack: (orderedTracks: List<Track>, selectedTrack: Track) -> Unit,
     onToggleSelection: (trackId: String) -> Unit,
@@ -165,8 +165,14 @@ public fun LibraryHomeContent(
                 modifiedAtByTrackId = modifiedAtByTrackId,
             )
         }
-    val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
-    val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
+    val albums =
+        if (browseMode == BrowseMode.Albums) {
+            remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
+        } else emptyList()
+    val artists =
+        if (browseMode == BrowseMode.Artists) {
+            remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
+        } else emptyList()
     val hasActiveFilter =
         browseQuery.favoriteOnly ||
             browseQuery.artworkOnly ||
@@ -190,6 +196,7 @@ public fun LibraryHomeContent(
     val homeListState = rememberLazyListState()
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth.value < WIDE_LIBRARY_BREAKPOINT_DP
+        val columns = albumGridColumnsForWidth(maxWidth.value, compact)
         Box(
             modifier =
                 Modifier.fillMaxSize().recordRhythHausBackdrop(homeBackdrop),
@@ -287,66 +294,44 @@ public fun LibraryHomeContent(
                         }
                         when (browseMode) {
                             BrowseMode.Albums -> {
-                                item {
-                                    BoxWithConstraints(
-                                        modifier = Modifier.fillMaxWidth()) {
-                                            val columns =
-                                                albumGridColumnsForWidth(
-                                                    maxWidth.value,
-                                                    compact,
-                                                )
-                                            val gap = albumGridGapDp(compact).dp
-                                            Column(
-                                                verticalArrangement =
-                                                    Arrangement.spacedBy(gap)) {
-                                                    albums
-                                                        .chunked(columns)
-                                                        .forEach { row ->
-                                                            Row(
-                                                                modifier =
-                                                                    Modifier
-                                                                        .fillMaxWidth(),
-                                                                horizontalArrangement =
-                                                                    Arrangement
-                                                                        .spacedBy(
-                                                                            gap,
-                                                                        ),
-                                                            ) {
-                                                                row.forEach {
-                                                                    albumGroup
-                                                                    ->
-                                                                    AlbumCard(
-                                                                        album =
-                                                                            albumGroup,
-                                                                        labels =
-                                                                            labels,
-                                                                        artworkLoader =
-                                                                            artworkLoader,
-                                                                        modifier =
-                                                                            Modifier
-                                                                                .weight(
-                                                                                    1f),
-                                                                        onClick = {
-                                                                            onOpenAlbum(
-                                                                                albumGroup
-                                                                                    .album)
-                                                                        },
-                                                                    )
-                                                                }
-                                                                repeat(
-                                                                    columns -
-                                                                        row
-                                                                            .size) {
-                                                                        Spacer(
-                                                                            Modifier
-                                                                                .weight(
-                                                                                    1f))
-                                                                    }
-                                                            }
-                                                        }
+                                val rowCount =
+                                    albums.size / columns +
+                                        if (albums.size % columns == 0) 0 else 1
+                                items(
+                                    count = rowCount,
+                                    contentType = { "album-row" }) { row ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement =
+                                                Arrangement.spacedBy(
+                                                    albumGridGapDp(compact).dp),
+                                        ) {
+                                            repeat(columns) { column ->
+                                                val album =
+                                                    albums.getOrNull(
+                                                        row * columns + column)
+                                                if (album == null) {
+                                                    Spacer(Modifier.weight(1f))
+                                                } else {
+                                                    AlbumCard(
+                                                        album = album,
+                                                        labels = labels,
+                                                        artworkLoader =
+                                                            artworkLoader,
+                                                        modifier =
+                                                            Modifier.weight(1f),
+                                                        onClick = {
+                                                            onOpenAlbum(
+                                                                AlbumIdentity(
+                                                                    album.album,
+                                                                    album
+                                                                        .albumArtist))
+                                                        },
+                                                    )
                                                 }
+                                            }
                                         }
-                                }
+                                    }
                             }
 
                             BrowseMode.Artists -> {

@@ -1,0 +1,54 @@
+-- Singleton persisted playback session metadata plus its ordered queue
+-- occurrences. Occurrences are stored one row each so duplicate track IDs and
+-- unbounded queue lengths survive restarts; occurrenceId is the occurrence
+-- identity and trackId may repeat freely.
+CREATE TABLE playback_session_meta (
+    id INTEGER NOT NULL PRIMARY KEY CHECK (id = 0),
+    currentOccurrenceId TEXT,
+    positionMillis INTEGER NOT NULL,
+    repeatMode TEXT NOT NULL,
+    shuffleMode TEXT NOT NULL,
+    legacyImportCompleted INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE playback_session_queue (
+    occurrenceId TEXT NOT NULL PRIMARY KEY,
+    queueIndex INTEGER NOT NULL,
+    trackId TEXT NOT NULL
+);
+
+selectSessionMeta:
+SELECT currentOccurrenceId, positionMillis, repeatMode, shuffleMode, legacyImportCompleted
+FROM playback_session_meta
+WHERE id = 0;
+
+selectQueueEntries:
+SELECT occurrenceId, trackId
+FROM playback_session_queue
+ORDER BY queueIndex ASC;
+
+deleteQueueEntries:
+DELETE FROM playback_session_queue;
+
+insertQueueEntry:
+INSERT INTO playback_session_queue(occurrenceId, queueIndex, trackId)
+VALUES (?, ?, ?);
+
+upsertSessionMeta:
+INSERT INTO playback_session_meta(id, currentOccurrenceId, positionMillis, repeatMode, shuffleMode, legacyImportCompleted)
+VALUES (0, ?, ?, ?, ?, 0)
+ON CONFLICT(id) DO UPDATE SET
+    currentOccurrenceId = excluded.currentOccurrenceId,
+    positionMillis = excluded.positionMillis,
+    repeatMode = excluded.repeatMode,
+    shuffleMode = excluded.shuffleMode;
+
+updatePositionForOccurrence:
+UPDATE playback_session_meta
+SET positionMillis = ?
+WHERE currentOccurrenceId = ?;
+
+markLegacyImportComplete:
+UPDATE playback_session_meta
+SET legacyImportCompleted = 1
+WHERE id = 0;

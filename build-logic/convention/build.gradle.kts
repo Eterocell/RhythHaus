@@ -7,7 +7,7 @@ tasks.withType<Test>().configureEach {
         "rhythhaus.rootDir", projectDir.parentFile.parentFile.absolutePath)
     systemProperty(
         "rhythhaus.composeResourcesDependency",
-        libs.compose.components.resources.get(),
+        libs.compose.components.resources.get().toString(),
     )
     providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile
         ->

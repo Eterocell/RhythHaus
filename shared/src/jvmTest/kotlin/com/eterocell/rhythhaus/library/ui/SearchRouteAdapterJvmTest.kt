@@ -1,7 +1,11 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -9,10 +13,14 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
@@ -29,19 +37,35 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueOccurrence
+import com.eterocell.rhythhaus.library.LibraryDatabase
+import com.eterocell.rhythhaus.library.LibraryPlatformKind
+import com.eterocell.rhythhaus.library.LibraryRepository
+import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.nio.file.Files
+import java.util.Locale
+import javax.imageio.ImageIO
 import kotlin.collections.AbstractList
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
+
+private const val SearchArtworkSlotTag = "search-artwork-slot"
+private const val SearchNeutralArtworkTag = "search-neutral-artwork"
 
 class SearchRouteAdapterJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -296,6 +320,98 @@ class SearchRouteAdapterJvmTest {
                 actionCountBeforeInactiveInteraction, selectionActions.size)
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun searchRouteLoadsPersistedArtworkByTrackIdWithDecorativeFallbacks() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+        val harness = openArtworkRouteHarness()
+        try {
+            val knownArtworkColor = Color(0xFFFF3355)
+            harness.seedTrack(
+                "alpha",
+                "Song Alpha",
+                solidArtwork(knownArtworkColor),
+            )
+            harness.seedTrack("bravo", "Song Bravo", null)
+            harness.seedTrack(
+                "charlie", "Song Charlie", byteArrayOf(1, 2, 3, 4))
+
+            val tracks = harness.repository.tracks()
+            // The list projection stays BLOB-free; bytes arrive only by ID.
+            assertTrue(tracks.all { it.artworkBytes == null })
+            assertEquals(
+                setOf("alpha", "charlie"),
+                harness.repository.artworkTrackIds(),
+            )
+
+            val controller = PlaybackController(FakePlaybackEngine())
+            runComposeUiTest {
+                setContent {
+                    CompositionLocalProvider(
+                        LocalTrackArtworkLoader provides
+                            { id ->
+                                harness.repository.artworkForTrack(id)
+                            },
+                    ) {
+                        searchOverlay(
+                            TrackSelectionState(),
+                            mutableListOf(),
+                            tracks = tracks,
+                            playbackController = controller,
+                        )
+                    }
+                }
+                onNode(hasSetTextAction()).performTextInput("Song")
+                waitForIdle()
+
+                fun artworkSlotArgb(): Int =
+                    onAllNodes(
+                            hasTestTag(SearchArtworkSlotTag),
+                            useUnmergedTree = true,
+                        )[0]
+                        .captureToImage()
+                        .toPixelMap()
+                        .let { pixels ->
+                            pixels[pixels.width / 2, pixels.height / 2].toArgb()
+                        }
+
+                waitUntil(timeoutMillis = 10_000) {
+                    val slots =
+                        onAllNodes(
+                                hasTestTag(SearchArtworkSlotTag),
+                                useUnmergedTree = true,
+                            )
+                            .fetchSemanticsNodes()
+                    val neutralFallbacks =
+                        onAllNodes(
+                                hasTestTag(SearchNeutralArtworkTag),
+                                useUnmergedTree = true,
+                            )
+                            .fetchSemanticsNodes()
+                    slots.size == 3 &&
+                        neutralFallbacks.size == 2 &&
+                        artworkSlotArgb() == knownArtworkColor.toArgb()
+                }
+
+                onAllNodes(
+                        hasTestTag(SearchArtworkSlotTag) and hasClickAction(),
+                        useUnmergedTree = true,
+                    )
+                    .assertCountEquals(0)
+
+                // Playback stays owned by the row, not the decorative artwork.
+                onNode(searchRow("Song Alpha"), useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                assertEquals("alpha", controller.state.value.currentTrack?.id)
+            }
+        } finally {
+            harness.close()
+            Locale.setDefault(previousLocale)
+        }
+    }
+
     @androidx.compose.runtime.Composable
     private fun searchOverlay(
         trackSelectionState: TrackSelectionState,
@@ -475,6 +591,85 @@ class SearchRouteAdapterJvmTest {
 
         override fun reorder(playlistId: String, entryIds: List<String>) =
             error("unused")
+    }
+}
+
+private const val ArtworkRouteSourceId = "artwork-source"
+
+private class ArtworkRouteHarness(
+    private val database: LibraryDatabase,
+    val repository: LibraryRepository,
+) : AutoCloseable {
+    fun seedTrack(id: String, title: String, artworkBytes: ByteArray?) {
+        repository.upsertTrack(
+            LibraryTrack(
+                id = id,
+                sourceId = ArtworkRouteSourceId,
+                sourceLocalKey = "$id.mp3",
+                audioSource = AudioSource.FilePath("/$id.mp3"),
+                displayName = "$id.mp3",
+                title = title,
+                artist = "Artist",
+                album = "Album",
+                durationMillis = 1_000L,
+                sizeBytes = null,
+                modifiedAtEpochMillis = null,
+                lastSeenScanId = null,
+                createdAtEpochMillis = 1L,
+                updatedAtEpochMillis = 1L,
+                artworkBytes = artworkBytes,
+                artworkMimeType = artworkBytes?.let { "image/png" },
+            ),
+        )
+    }
+
+    override fun close() {
+        stopKoin()
+        database.driver.close()
+    }
+}
+
+private fun openArtworkRouteHarness(): ArtworkRouteHarness {
+    val databaseFile =
+        Files.createTempFile("rhythhaus-search-artwork-route", ".db")
+            .toFile()
+            .apply {
+                delete()
+                deleteOnExit()
+            }
+    val database = LibraryDatabase(databaseFile)
+    val application = startKoin {
+        allowOverride(true)
+        modules(
+            libraryImplementationModule(),
+            module { single<LibraryDatabase> { database } },
+        )
+    }
+    val repository = application.koin.get<LibraryRepository>()
+    repository.upsertSource(
+        LibrarySource(
+            id = ArtworkRouteSourceId,
+            platformKind = LibraryPlatformKind.JvmFolder,
+            displayName = "Artwork source",
+            handle = "/artwork",
+            createdAtEpochMillis = 1L,
+        ),
+    )
+    return ArtworkRouteHarness(database, repository)
+}
+
+/** A solid-color PNG so the rendered pixel assertion is deterministic. */
+private fun solidArtwork(color: Color): ByteArray {
+    val image = BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB)
+    val argb = color.toArgb()
+    for (x in 0 until image.width) {
+        for (y in 0 until image.height) {
+            image.setRGB(x, y, argb)
+        }
+    }
+    return ByteArrayOutputStream().use { output ->
+        ImageIO.write(image, "png", output)
+        output.toByteArray()
     }
 }
 

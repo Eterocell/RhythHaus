@@ -16,6 +16,8 @@
     <string name="playback_error_missing_file">此媒体文件缺失</string>
     <string name="playback_error_unknown">播放失败</string>
     <string name="playback_error_unsupported_format">不支持此音频格式</string>
+    <string name="playback_position">播放位置</string>
+    <string name="playback_position_value_format">%1$s / %2$s</string>
     <string name="playback_status_buffering">缓冲中</string>
     <string name="playback_status_error">需要本地文件</string>
     <string name="playback_status_loading">加载中</string>

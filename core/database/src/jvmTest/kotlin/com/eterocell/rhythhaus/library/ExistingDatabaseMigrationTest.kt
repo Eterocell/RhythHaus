@@ -331,6 +331,140 @@ class ExistingDatabaseMigrationTest {
     }
 
     @Test
+    fun versionTenFixtureMigratesPlaybackSessionTablesWithoutTouchingLibraryRows() {
+        val databaseFile = copyVersionTenDatabase()
+        seedVersionTwoLibrary(databaseFile)
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA user_version = 10")
+                }
+            }
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            val database = libraryDatabase.database
+            assertNull(
+                database.playbackSessionQueries
+                    .selectSessionMeta()
+                    .executeAsOneOrNull())
+            assertTrue(
+                database.playbackSessionQueries
+                    .selectQueueEntries()
+                    .executeAsList()
+                    .isEmpty())
+
+            database.playbackSessionQueries.upsertSessionMeta(
+                "occurrence-0", 12L, "StopAfterQueue", "Off")
+            database.playbackSessionQueries.insertQueueEntry(
+                "occurrence-0", 0L, "legacy-track")
+            database.playbackSessionQueries.updatePositionForOccurrence(
+                34L, "occurrence-0")
+
+            assertEquals(
+                "legacy-track",
+                database.playbackSessionQueries
+                    .selectQueueEntries()
+                    .executeAsOne()
+                    .trackId)
+            assertEquals(
+                34L,
+                database.playbackSessionQueries
+                    .selectSessionMeta()
+                    .executeAsOne()
+                    .positionMillis)
+            assertEquals(
+                "legacy-track",
+                database.libraryTrackQueries
+                    .selectAllTracks()
+                    .executeAsOne()
+                    .id)
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun unversionedVersionTenDatabaseBootstrapsPlaybackSessionTables() {
+        val databaseFile = copyVersionTenDatabase()
+        seedVersionTwoLibrary(databaseFile)
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertTrue(
+                libraryDatabase.database.playbackSessionQueries
+                    .selectQueueEntries()
+                    .executeAsList()
+                    .isEmpty())
+            assertEquals(
+                "legacy-track",
+                libraryDatabase.database.libraryTrackQueries
+                    .selectAllTracks()
+                    .executeAsOne()
+                    .id)
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun versionTenFixtureAddsNullableAlbumArtistAndReopensWithArchivedValue() {
+        val databaseFile = copyVersionTenDatabase()
+        seedVersionTwoLibrary(databaseFile)
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA user_version = 10")
+                }
+            }
+
+        LibraryDatabase(databaseFile).let { migrated ->
+            try {
+                assertEquals(
+                    RhythHausDatabase.Schema.version,
+                    driverUserVersion(migrated.driver))
+                assertTrue(
+                    hasColumn(databaseFile, "library_track", "albumArtist"))
+                assertNull(
+                    migrated.database.libraryTrackQueries
+                        .selectAllTracks()
+                        .executeAsOne()
+                        .albumArtist)
+            } finally {
+                migrated.driver.close()
+            }
+        }
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        "UPDATE library_track SET albumArtist = 'Various Artists' WHERE id = 'legacy-track'")
+                }
+            }
+        LibraryDatabase(databaseFile).let { reopened ->
+            try {
+                assertEquals(
+                    "Various Artists",
+                    reopened.database.libraryTrackQueries
+                        .selectAllTracks()
+                        .executeAsOne()
+                        .albumArtist)
+            } finally {
+                reopened.driver.close()
+                databaseFile.delete()
+            }
+        }
+    }
+
+    @Test
     fun freshCurrentDatabaseReopensAtCurrentSchemaVersion() {
         val databaseFile =
             Files.createTempFile("rhythhaus-fresh-current", ".db")
@@ -540,6 +674,16 @@ class ExistingDatabaseMigrationTest {
         val target = Files.createTempFile("rhythhaus-v3", ".db").toFile()
         Files.copy(
             File("src/commonMain/sqldelight/databases/3.db").toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        return target
+    }
+
+    private fun copyVersionTenDatabase(): File {
+        val target = Files.createTempFile("rhythhaus-v10", ".db").toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/10.db").toPath(),
             target.toPath(),
             StandardCopyOption.REPLACE_EXISTING,
         )

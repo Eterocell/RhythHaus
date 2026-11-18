@@ -225,39 +225,38 @@ public object PlaybackSessionCodec {
 
 /** A persisted playback checkpoint. */
 public sealed interface PlaybackCheckpoint {
-    /** Session snapshot carried by every checkpoint. */
-    public val snapshot: PlaybackSessionSnapshot
-    /** Persisted revision associated with [snapshot], when available. */
+    /** Persisted revision associated with this checkpoint, when available. */
     public val revision: Long?
 
-    /** A checkpoint taken immediately. */
+    /**
+     * A complete structural checkpoint taken immediately.
+     *
+     * This is the only checkpoint that can replace the persisted queue.
+     */
     public data class Immediate(
         /** Captured session. */
-        public override val snapshot: PlaybackSessionSnapshot,
+        public val snapshot: PlaybackSessionSnapshot,
         /** Persisted revision. */
         public override val revision: Long? = null,
     ) : PlaybackCheckpoint
 
-    /** A checkpoint taken while playing. */
-    public data class PlayingProgress(
-        /** Checkpoint identity. */
-        public val key: ProgressCheckpointKey,
-        /** Captured session. */
-        public override val snapshot: PlaybackSessionSnapshot,
+    /**
+     * A position-only checkpoint taken while playback advances.
+     *
+     * The checkpoint carries no queue state: consumers persist it with
+     * [PlaybackSessionStore.savePosition] and must not replace the queue.
+     */
+    public data class Position(
+        /** Engine generation that produced the checkpoint. */
+        public val generation: Long,
+        /** Occurrence selected when the checkpoint was emitted. */
+        public val currentOccurrenceId: String,
+        /** Non-negative playback position in milliseconds. */
+        public val positionMillis: Long,
         /** Persisted revision. */
-        public override val revision: Long? = null,
+        public override val revision: Long,
     ) : PlaybackCheckpoint
 }
-
-/** Identifies a progress checkpoint within one active playback generation. */
-public data class ProgressCheckpointKey(
-    /** Engine generation that produced the progress checkpoint. */
-    public val generation: Long,
-    /** Occurrence selected when the checkpoint was emitted. */
-    public val currentOccurrenceId: String,
-    /** Whole-second position bucket used to coalesce progress updates. */
-    public val secondBucket: Long,
-)
 
 /** Converts legacy track IDs into session queue entries. */
 internal fun normalizeLegacyQueue(

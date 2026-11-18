@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.nowplaying.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -19,10 +20,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -30,11 +40,21 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
 import kotlin.math.max
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.nowplaying.generated.resources.Res
+import rhythhaus.feature.nowplaying.generated.resources.playback_position
+import rhythhaus.feature.nowplaying.generated.resources.playback_position_value_format
 import top.yukonga.miuix.kmp.basic.Text
 
 internal fun formatMillis(totalMillis: Long?): String {
@@ -58,6 +78,46 @@ internal fun scrubberPositionForFraction(
     return (durationMillis * fraction.coerceIn(0f, 1f))
         .toLong()
         .coerceIn(0L, durationMillis)
+}
+
+internal const val MusicScrubberKeyboardStepMillis: Long = 5_000L
+
+/**
+ * Target position for one keyboard adjustment, or `null` when the duration is
+ * unknown and seeking is not actionable.
+ */
+internal fun scrubberSeekTargetForDelta(
+    positionMillis: Long,
+    durationMillis: Long,
+    deltaMillis: Long,
+): Long? {
+    if (durationMillis <= 0L) return null
+    val current = positionMillis.coerceIn(0L, durationMillis)
+    return (current + deltaMillis).coerceIn(0L, durationMillis)
+}
+
+/**
+ * Applies one key press to the scrubber and reports whether the event was
+ * handled. Seeking happens at most once, and only while the duration is known.
+ */
+internal fun handleScrubberKeyEvent(
+    event: KeyEvent,
+    positionMillis: Long,
+    durationMillis: Long,
+    onSeek: (Long) -> Unit,
+): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+    val delta =
+        when (event.key) {
+            Key.DirectionLeft -> -MusicScrubberKeyboardStepMillis
+            Key.DirectionRight -> MusicScrubberKeyboardStepMillis
+            else -> return false
+        }
+    if (durationMillis <= 0L) return false
+    val current = positionMillis.coerceIn(0L, durationMillis)
+    val target = scrubberSeekTargetForDelta(current, durationMillis, delta)
+    if (target != null && target != current) onSeek(target)
+    return true
 }
 
 internal interface ScrubFractionState {
@@ -122,11 +182,12 @@ internal class MusicScrubInteractionState(
     }
 
     fun finishScrub(): Long? {
-        val target = scrubFraction?.let {
+        val fraction = scrubFraction
+        scrubFraction = null
+        if (playbackDurationMillis <= 0L) return null
+        return fraction?.let {
             scrubberPositionForFraction(it, playbackDurationMillis)
         }
-        scrubFraction = null
-        return target
     }
 
     fun cancelScrub() {
@@ -154,9 +215,53 @@ internal fun MusicProgressScrubber(
     val density = LocalDensity.current
     val thumbOffset =
         with(density) { (widthPx * displayFraction).toDp() - 7.dp }
+    val progressLabel = stringResource(Res.string.playback_position)
+    val progressValue =
+        stringResource(
+            Res.string.playback_position_value_format,
+            formatMillis(displayPositionMillis),
+            formatMillis(durationMillis))
+    val focusRequester = remember { FocusRequester() }
+    // Playback ticks recompose the caller with a fresh lambda; keep the active
+    // drag alive by reading the latest callback instead of keying on it.
+    val currentOnSeek by rememberUpdatedState(onSeek)
+
+    fun commitSeek(targetMillis: Long) {
+        if (durationMillis <= 0L) return
+        interactionState.cancelScrub()
+        currentOnSeek(targetMillis.coerceIn(0L, durationMillis))
+    }
 
     Column(
-        modifier = modifier,
+        modifier =
+            modifier
+                .onKeyEvent { event ->
+                    handleScrubberKeyEvent(
+                        event,
+                        displayPositionMillis,
+                        durationMillis,
+                        ::commitSeek,
+                    )
+                }
+                .focusRequester(focusRequester)
+                .focusable()
+                .semantics {
+                    contentDescription = progressLabel
+                    stateDescription = progressValue
+                    if (durationMillis > 0L) {
+                        progressBarRangeInfo =
+                            ProgressBarRangeInfo(
+                                current = displayFraction,
+                                range = 0f..1f,
+                            )
+                        setProgress { fraction ->
+                            commitSeek(
+                                scrubberPositionForFraction(
+                                    fraction, durationMillis))
+                            true
+                        }
+                    }
+                },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
@@ -164,9 +269,10 @@ internal fun MusicProgressScrubber(
                 Modifier.fillMaxWidth()
                     .height(44.dp)
                     .onSizeChanged { widthPx = it.width.toFloat() }
-                    .pointerInput(durationMillis, onSeek) {
+                    .pointerInput(durationMillis) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            focusRequester.requestFocus()
                             fun fractionFor(x: Float) =
                                 scrubberFractionForOffset(x, widthPx)
                             fun finishIfReleased(
@@ -193,7 +299,7 @@ internal fun MusicProgressScrubber(
                                         event.changes.firstOrNull {
                                             it.id == activePointerId
                                         }
-                                    if (change == null) {
+                                    if (change == null || change.isConsumed) {
                                         return@awaitEachGesture
                                     }
 
@@ -211,7 +317,9 @@ internal fun MusicProgressScrubber(
                                 shouldSeekOnRelease = true
                             } finally {
                                 if (shouldSeekOnRelease) {
-                                    interactionState.finishScrub()?.let(onSeek)
+                                    interactionState
+                                        .finishScrub()
+                                        ?.let(currentOnSeek)
                                 } else {
                                     interactionState.cancelScrub()
                                 }

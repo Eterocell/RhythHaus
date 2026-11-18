@@ -1208,14 +1208,14 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
-    fun searchResourceOwnershipRetainsExactEnZhPartitionsWithoutForeignImports() {
+    fun searchResourcesKeepRequiredOwnersAndTranslatedKeysWithoutForeignImports() {
         val root = File(System.getProperty("rhythhaus.rootDir"))
         assertSearchResourceAudit(SearchResourceFixture.fromRepository(root))
         mapOf(
             SearchMutation.MissingMovedResource to "SEARCH-RESOURCE missing moved key",
             SearchMutation.DuplicateMovedResource to "SEARCH-RESOURCE duplicate key in Search EN",
             SearchMutation.DuplicateMovedResourceZh to "SEARCH-RESOURCE duplicate key in Search ZH",
-            SearchMutation.ExtraMovedResource to "SEARCH-RESOURCE unexpected Search key",
+            SearchMutation.ExtraMovedResource to "SEARCH-RESOURCE locale parity differs",
             SearchMutation.CrossOwnerDuplicateResource to "SEARCH-RESOURCE duplicate key across Shared/Search",
             SearchMutation.WrongResourceOwner to "SEARCH-RESOURCE wrong owner for moved key",
             SearchMutation.InvalidResourceNamespace to "SEARCH-RESOURCE wrong namespace",
@@ -2020,7 +2020,7 @@ class ArchitectureCheckPluginFunctionalTest {
             """.trimIndent(),
         )
         source(projectDir, ":feature:nowplaying", "NowPlaying.kt", "package com.eterocell.rhythhaus.nowplaying\n/** A documented feature declaration. */\npublic class NowPlaying")
-        writeKotlinSource(projectDir, ":feature:nowplaying", "src/commonMain/kotlin/com/eterocell/rhythhaus/ui/NowPlayingUi.kt", "package com.eterocell.rhythhaus.ui\n/** A documented feature UI declaration. */\npublic class NowPlayingUi")
+        writeKotlinSource(projectDir, ":feature:nowplaying", "src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/ui/NowPlayingUi.kt", "package com.eterocell.rhythhaus.nowplaying.ui\n/** A documented feature UI declaration. */\npublic class NowPlayingUi")
         val featureStrings = moduleDir(projectDir, ":feature:nowplaying")
             .resolve("src/commonMain/composeResources/values/strings.xml")
         featureStrings.parentFile.mkdirs()
@@ -2619,13 +2619,12 @@ class ArchitectureCheckPluginFunctionalTest {
             assertTrue(names.containsAll(sharedRequired), "SEARCH-RESOURCE wrong owner for moved key")
         }
         assertTrue(feature.flatten().intersect(sharedRequired.toSet()).isEmpty(), "SEARCH-RESOURCE wrong owner for moved key")
-        assertTrue(shared.flatten().intersect(expected.toSet()).isEmpty(), "SEARCH-RESOURCE duplicate key across Shared/Search")
+        assertTrue(shared.flatten().intersect(feature.flatten().toSet()).isEmpty(), "SEARCH-RESOURCE duplicate key across Shared/Search")
         feature.zip(listOf("EN", "ZH")).forEach { (names, locale) ->
             assertEquals(names.size, names.toSet().size, "SEARCH-RESOURCE duplicate key in Search $locale")
-            assertTrue(names.all { it in expected }, "SEARCH-RESOURCE unexpected Search key")
-            assertEquals(expected, names, "SEARCH-RESOURCE missing moved key")
+            assertTrue(names.containsAll(expected), "SEARCH-RESOURCE missing moved key")
         }
-        assertEquals(feature[0], feature[1], "SEARCH-RESOURCE locale parity differs")
+        assertEquals(feature[0].toSet(), feature[1].toSet(), "SEARCH-RESOURCE locale parity differs")
         assertFalse(fixture.featureSource.readText().contains("example.wrong.resources"), "SEARCH-RESOURCE wrong namespace")
         assertFalse(fixture.featureSource.readText().contains("rhythhaus.shared.generated.resources"), "SEARCH-RESOURCE feature imports Shared generated resources")
         assertFalse(fixture.sharedSource.readText().contains("rhythhaus.feature.search.generated.resources"), "SEARCH-RESOURCE Shared imports Search generated resources")

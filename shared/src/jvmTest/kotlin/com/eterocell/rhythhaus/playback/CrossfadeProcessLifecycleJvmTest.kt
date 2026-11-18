@@ -194,6 +194,11 @@ class CrossfadeProcessLifecycleJvmTest {
                                     override suspend fun save(
                                         snapshot: PlaybackSessionSnapshot
                                     ) = Unit
+
+                                    override suspend fun savePosition(
+                                        currentOccurrenceId: String,
+                                        positionMillis: Long,
+                                    ) = Unit
                                 }
                             }
                         },
@@ -338,6 +343,11 @@ class CrossfadeProcessLifecycleJvmTest {
             PlaybackSessionSnapshot()
 
         override suspend fun save(snapshot: PlaybackSessionSnapshot) = Unit
+
+        override suspend fun savePosition(
+            currentOccurrenceId: String,
+            positionMillis: Long,
+        ) = Unit
     }
 
     private class OverlapEngine : CrossfadePlaybackEngine {

@@ -1,10 +1,12 @@
 package com.eterocell.rhythhaus.carplay
 
+import com.eterocell.rhythhaus.AlbumIdentity
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueOccurrence
+import com.eterocell.rhythhaus.effectiveAlbumArtist
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -92,6 +94,8 @@ internal constructor(
     public val artist: String,
     /** Current track album. */
     public val album: String?,
+    /** Current track album artist tag, when present. */
+    public val albumArtist: String?,
     /** Track duration in milliseconds when known. */
     public val durationMillis: Long?,
     artworkBytes: ByteArray?,
@@ -109,6 +113,7 @@ internal constructor(
                 title == other.title &&
                 artist == other.artist &&
                 album == other.album &&
+                albumArtist == other.albumArtist &&
                 durationMillis == other.durationMillis &&
                 artwork.contentEqualsNullable(other.artwork))
 
@@ -117,6 +122,7 @@ internal constructor(
         result = 31 * result + title.hashCode()
         result = 31 * result + artist.hashCode()
         result = 31 * result + (album?.hashCode() ?: 0)
+        result = 31 * result + (albumArtist?.hashCode() ?: 0)
         result = 31 * result + (durationMillis?.hashCode() ?: 0)
         result = 31 * result + (artwork?.contentHashCode() ?: 0)
         return result
@@ -628,7 +634,11 @@ internal constructor(
                     },
                 subtitle =
                     if (category == CarPlayCategoryId.Albums)
-                        groupTracks.first().artist.ifBlank { null }
+                        effectiveAlbumArtist(
+                                groupTracks.first().albumArtist,
+                                groupTracks.first().artist,
+                            )
+                            .ifBlank { null }
                     else null,
                 children = children,
             )
@@ -649,21 +659,24 @@ internal constructor(
         }
         val albums =
             tracks
-                .groupBy { it.artist to it.album }
+                .groupBy {
+                    AlbumIdentity.of(it.album, it.albumArtist, it.artist)
+                }
                 .entries
                 .sortedWith(
-                    compareBy<
-                            Map.Entry<
-                                Pair<String, String>, List<LibraryTrack>>> {
-                            it.key.first.lowercase()
+                    compareBy<Map.Entry<AlbumIdentity, List<LibraryTrack>>> {
+                            it.key.album.lowercase()
                         }
-                        .thenBy { it.key.first }
-                        .thenBy { it.key.second.lowercase() }
-                        .thenBy { it.key.second },
+                        .thenBy { it.key.albumArtist.lowercase() }
+                        .thenBy { it.key.album }
+                        .thenBy { it.key.albumArtist },
                 )
-                .map { (key, groupedTracks) ->
-                    "album:${key.first.length}:${key.first}:${key.second.length}:${key.second}" to
-                        groupedTracks
+                .map { (identity, groupedTracks) ->
+                    "album:${identity.albumArtist.length}:${identity.albumArtist}:${identity.album.length}:${identity.album}" to
+                        groupedTracks.sortedWith(
+                            compareBy<LibraryTrack> { it.discNumber ?: 0 }
+                                .thenBy { it.trackNumber ?: 0 }
+                                .thenBy { it.title.lowercase() })
                 }
                 .let { groupedEntries(CarPlayCategoryId.Albums, it) }
         val artists =
@@ -792,6 +805,7 @@ internal constructor(
                         title = it.title,
                         artist = it.artist,
                         album = it.album,
+                        albumArtist = it.albumArtist,
                         durationMillis = it.durationMillis,
                         artworkBytes =
                             it.artworkBytes

@@ -3,7 +3,10 @@ package com.eterocell.rhythhaus.library.ui
 sealed interface TrackSelectionPageKey {
     data object HomeSongs : TrackSelectionPageKey
 
-    data class Album(val album: String) : TrackSelectionPageKey
+    data class Album(
+        val album: String,
+        val albumArtist: String = "",
+    ) : TrackSelectionPageKey
 
     data class Artist(val artist: String) : TrackSelectionPageKey
 

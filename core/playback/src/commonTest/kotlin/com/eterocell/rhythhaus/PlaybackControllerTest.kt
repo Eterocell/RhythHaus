@@ -813,11 +813,10 @@ class PlaybackControllerTest {
         engine.listener?.onPlaybackProgress(
             engine.activeGeneration, 1_100L, 10_000L)
 
-        val checkpoint =
-            checkpoints.receive() as PlaybackCheckpoint.PlayingProgress
-        assertEquals("entry-1", checkpoint.key.currentOccurrenceId)
-        assertEquals("entry-1", checkpoint.snapshot.currentOccurrenceId)
-        assertEquals("track-1", checkpoint.snapshot.queue.single().trackId)
+        val checkpoint = checkpoints.receive() as PlaybackCheckpoint.Position
+        assertEquals("entry-1", checkpoint.currentOccurrenceId)
+        assertEquals(1_100L, checkpoint.positionMillis)
+        assertEquals(engine.activeGeneration, checkpoint.generation)
         collection.cancelAndJoin()
     }
 
@@ -3119,7 +3118,7 @@ class PlaybackControllerTest {
      * While the winner plays, stale old-generation progress (even at a new
      * per-second bucket), completion and error callbacks can neither mutate the
      * state nor append checkpoints, while fresh owner progress still emits
-     * exactly one PlayingProgress checkpoint (audit: progress ownership).
+     * exactly one position-only checkpoint (audit: progress ownership).
      */
     @Test
     fun staleProgressAndCompletionCannotAppendCheckpointsWhileWinnerPlays() =
@@ -3167,8 +3166,8 @@ class PlaybackControllerTest {
             engine.listener?.onPlaybackProgress(
                 winnerGeneration, 1_100L, 10_000L)
             val progress = checkpoints.receive()
-            assertTrue(progress is PlaybackCheckpoint.PlayingProgress)
-            assertEquals(1_100L, progress.snapshot.positionMillis)
+            assertTrue(progress is PlaybackCheckpoint.Position)
+            assertEquals(1_100L, progress.positionMillis)
             assertNull(checkpoints.tryReceive().getOrNull())
             collection.cancelAndJoin()
         }
@@ -3795,14 +3794,25 @@ class PlaybackControllerTest {
         engine.awaitLoad()
         assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
         controller.seekTo(500L)
-        assertEquals(500L, checkpoints.receive().snapshot.positionMillis)
+        assertEquals(
+            500L,
+            (checkpoints.receive() as PlaybackCheckpoint.Immediate)
+                .snapshot
+                .positionMillis)
         controller.pause()
         assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
         controller.setRepeatMode(RepeatMode.RepeatOne)
         assertEquals(
-            RepeatMode.RepeatOne, checkpoints.receive().snapshot.repeatMode)
+            RepeatMode.RepeatOne,
+            (checkpoints.receive() as PlaybackCheckpoint.Immediate)
+                .snapshot
+                .repeatMode)
         controller.setShuffleMode(ShuffleMode.On)
-        assertEquals(ShuffleMode.On, checkpoints.receive().snapshot.shuffleMode)
+        assertEquals(
+            ShuffleMode.On,
+            (checkpoints.receive() as PlaybackCheckpoint.Immediate)
+                .snapshot
+                .shuffleMode)
         controller.stop()
         assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
 
@@ -3825,14 +3835,13 @@ class PlaybackControllerTest {
             engine.listener?.onPlaybackProgress(generation, 1_100L, 10_000L)
             engine.listener?.onPlaybackProgress(generation, 1_900L, 10_000L)
             val first = checkpoints.receive()
-            assertTrue(first is PlaybackCheckpoint.PlayingProgress)
+            assertTrue(first is PlaybackCheckpoint.Position)
             assertNull(checkpoints.tryReceive().getOrNull())
 
             controller.seekTo(1_500L)
             assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
             engine.listener?.onPlaybackProgress(generation, 1_600L, 10_000L)
-            assertTrue(
-                checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+            assertTrue(checkpoints.receive() is PlaybackCheckpoint.Position)
             collection.cancelAndJoin()
         }
 
@@ -3850,21 +3859,18 @@ class PlaybackControllerTest {
             checkpoints.receive()
 
             engine.listener?.onPlaybackProgress(generation, 1_100L, 10_000L)
-            assertTrue(
-                checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+            assertTrue(checkpoints.receive() is PlaybackCheckpoint.Position)
             controller.stop()
             assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
             engine.listener?.onPlaybackStatus(
                 generation, PlaybackStatus.Playing)
             engine.listener?.onPlaybackProgress(generation, 1_200L, 10_000L)
-            assertTrue(
-                checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+            assertTrue(checkpoints.receive() is PlaybackCheckpoint.Position)
 
             controller.reconcileSession(testTracks(1))
             assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
             engine.listener?.onPlaybackProgress(generation, 1_300L, 10_000L)
-            assertTrue(
-                checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+            assertTrue(checkpoints.receive() is PlaybackCheckpoint.Position)
             collection.cancelAndJoin()
         }
 
@@ -3957,7 +3963,8 @@ class PlaybackControllerTest {
                 engine.activeGeneration, 500L, 2_000L)
 
             controller.restartCurrentTrack()
-            val restarted = checkpoints.receive().snapshot
+            val restarted =
+                (checkpoints.receive() as PlaybackCheckpoint.Immediate).snapshot
             assertEquals(
                 listOf("track-1", "track-2", "track-3"),
                 restarted.queue.map { it.trackId })
@@ -3966,13 +3973,19 @@ class PlaybackControllerTest {
 
             controller.skipToNext()
             assertEquals(
-                "track-3", checkpoints.receive().snapshot.currentTrackId)
+                "track-3",
+                (checkpoints.receive() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .currentTrackId)
             assertEquals(0L, controller.sessionSnapshot().positionMillis)
             engine.awaitLoadCount(2)
 
             controller.skipToPrevious()
             assertEquals(
-                "track-2", checkpoints.receive().snapshot.currentTrackId)
+                "track-2",
+                (checkpoints.receive() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .currentTrackId)
             engine.awaitLoadCount(3)
 
             engine.listener?.onPlaybackCompleted(
@@ -4035,11 +4048,15 @@ class PlaybackControllerTest {
                     RepeatMode.RepeatOne,
                     RepeatMode.RepeatOne,
                     RepeatMode.StopAfterCurrent),
-                received.map { it.snapshot.repeatMode },
+                received.map {
+                    (it as PlaybackCheckpoint.Immediate).snapshot.repeatMode
+                },
             )
             assertEquals(
                 listOf(ShuffleMode.Off, ShuffleMode.On, ShuffleMode.On),
-                received.map { it.snapshot.shuffleMode })
+                received.map {
+                    (it as PlaybackCheckpoint.Immediate).snapshot.shuffleMode
+                })
         }
 
     @Test
@@ -4060,8 +4077,15 @@ class PlaybackControllerTest {
 
             assertEquals(2, received.size)
             assertEquals(
-                RepeatMode.RepeatOne, received.first().snapshot.repeatMode)
-            assertEquals(ShuffleMode.On, received.last().snapshot.shuffleMode)
+                RepeatMode.RepeatOne,
+                (received.first() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .repeatMode)
+            assertEquals(
+                ShuffleMode.On,
+                (received.last() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .shuffleMode)
             collector.cancelAndJoin()
         }
 
@@ -4083,9 +4107,15 @@ class PlaybackControllerTest {
 
             assertEquals(80, received.size)
             assertEquals(
-                RepeatMode.RepeatOne, received.first().snapshot.repeatMode)
+                RepeatMode.RepeatOne,
+                (received.first() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .repeatMode)
             assertEquals(
-                RepeatMode.StopAfterQueue, received.last().snapshot.repeatMode)
+                RepeatMode.StopAfterQueue,
+                (received.last() as PlaybackCheckpoint.Immediate)
+                    .snapshot
+                    .repeatMode)
         }
 
     @Test

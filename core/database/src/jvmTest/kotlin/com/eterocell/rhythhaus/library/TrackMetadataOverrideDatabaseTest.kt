@@ -88,6 +88,7 @@ class TrackMetadataOverrideDatabaseTest {
                     null,
                     null,
                     null,
+                    null,
                     "previous-scan",
                     1,
                     1,

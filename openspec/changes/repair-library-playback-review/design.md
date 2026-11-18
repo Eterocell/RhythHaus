@@ -1,0 +1,1 @@
+See the [approved design](../../../docs/superpowers/specs/2026-11-18-library-playback-review-design.md) and [implementation plan](../../../docs/superpowers/plans/2026-11-18-library-playback-review.md).

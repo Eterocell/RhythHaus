@@ -1068,6 +1068,52 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun sameTitleReleasesProduceDistinctAlbumSelectionKeysAndBarIdentity() {
+        val firstKey =
+            trackSelectionPageKeyFor(
+                LibraryRoute.AlbumDetail("Shared", "Release One"),
+                BrowseMode.Songs,
+            )
+        val secondKey =
+            trackSelectionPageKeyFor(
+                LibraryRoute.AlbumDetail("Shared", "Release Two"),
+                BrowseMode.Songs,
+            )
+
+        assertEquals(
+            TrackSelectionPageKey.Album("Shared", "Release One"),
+            firstKey,
+        )
+        assertNotEquals(firstKey, secondKey)
+        assertEquals(
+            LibraryBottomBarContent.Selection(1),
+            libraryBottomBarContent(
+                route = LibraryRoute.AlbumDetail("Shared", "Release One"),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = firstKey,
+                        selectedTrackIds = setOf("track"),
+                    ),
+                isNowPlayingVisible = false,
+                hasSelectedTrack = false,
+            ),
+        )
+        assertEquals(
+            LibraryBottomBarContent.Hidden,
+            libraryBottomBarContent(
+                route = LibraryRoute.AlbumDetail("Shared", "Release Two"),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = firstKey,
+                        selectedTrackIds = setOf("track"),
+                    ),
+                isNowPlayingVisible = false,
+                hasSelectedTrack = false,
+            ),
+        )
+    }
+
+    @Test
     fun nowPlayingBarOffsetPxMatchesMeasuredHeightWhenFullyHidden() {
         // Regression guard: measured height can exceed the old 156px estimate
         // (e.g. after platform navigation-bar insets), so the offset must move

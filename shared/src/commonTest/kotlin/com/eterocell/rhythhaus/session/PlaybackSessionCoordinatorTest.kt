@@ -163,9 +163,194 @@ class PlaybackSessionCoordinatorTest {
             },
             assertDurable = { snapshot ->
                 assertEquals(1_100L, snapshot.positionMillis)
+                assertEquals(
+                    setOf("current-a", "upcoming-a-2"),
+                    snapshot.queue.map { it.occurrenceId }.toSet(),
+                )
             },
         )
     }
+
+    @Test
+    fun sixtySecondsOfProgressWritesPositionsWithoutQueueSnapshots() =
+        runBlocking {
+            val engine = FakePlaybackEngine()
+            val controller = PlaybackController(engine)
+            val store = RecordingStore()
+            val scope = detachedScope(coroutineContext)
+            val coordinator =
+                PlaybackSessionCoordinator(controller, store, scope)
+            coordinator.restoreOnce(emptyList())
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence(
+                        "current-a", playableTracks("track-a").single())),
+                "current-a",
+            )
+            withTimeout(5_000) {
+                controller.state.first {
+                    it.currentOccurrenceId == "current-a" &&
+                        it.status == PlaybackStatus.Paused
+                }
+            }
+            coordinator.flush()
+            val structuralSaves = store.saveAttempts
+            val generation = engine.activeGenerationForTest()
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
+            for (second in 1..60) {
+                engine.listener?.onPlaybackProgress(
+                    generation, second * 1_000L, 120_000L)
+            }
+            coordinator.flush()
+
+            assertEquals(structuralSaves, store.saveAttempts)
+            assertTrue(store.savedPositions.isNotEmpty())
+            assertTrue(store.savedPositions.size <= 60)
+            assertEquals(60_000L, store.savedPositions.last().second)
+            assertEquals(60_000L, store.durableSnapshot.positionMillis)
+            assertEquals("current-a", store.durableSnapshot.currentOccurrenceId)
+            assertEquals(
+                listOf("current-a"),
+                store.durableSnapshot.queue.map { it.occurrenceId },
+            )
+            scope.cancel()
+        }
+
+    @Test
+    fun coalescedStructuralCheckpointAndNewerPositionPersistBoth() =
+        runBlocking {
+            val controller =
+                RecordingSessionController(
+                    initialSnapshot = snapshot("struct", positionMillis = 0L))
+            val store = RecordingStore()
+            val scope = detachedScope(coroutineContext)
+            val coordinator =
+                PlaybackSessionCoordinator(controller, store, scope)
+            coordinator.restoreOnce(playableTracks("struct"))
+            val savesBeforeCheckpoints = store.saveAttempts
+
+            coordinator.accept(
+                PlaybackCheckpoint.Immediate(
+                    occurrenceSnapshot("struct", 100L), revision = 2L))
+            coordinator.accept(
+                PlaybackCheckpoint.Position(
+                    generation = 1L,
+                    currentOccurrenceId = "struct",
+                    positionMillis = 900L,
+                    revision = 3L,
+                ))
+            coordinator.flush()
+
+            assertEquals(savesBeforeCheckpoints + 1, store.saveAttempts)
+            assertEquals(900L, store.durableSnapshot.positionMillis)
+            assertEquals(listOf("struct" to 900L), store.savedPositions)
+            assertTrue(
+                store.events.indexOf("save:struct") <
+                    store.events.indexOf("position:struct:900"))
+            scope.cancel()
+        }
+
+    @Test
+    fun delayedProgressCannotOverwriteReplacedQueueOrNewerPosition() =
+        runBlocking {
+            val controller =
+                RecordingSessionController(
+                    initialSnapshot = snapshot("old", positionMillis = 100L))
+            val store =
+                RecordingStore(initial = snapshot("old", positionMillis = 100L))
+            val scope = detachedScope(coroutineContext)
+            val coordinator =
+                PlaybackSessionCoordinator(controller, store, scope)
+            coordinator.restoreOnce(playableTracks("old", "new"))
+            coordinator.accept(
+                PlaybackCheckpoint.Immediate(
+                    occurrenceSnapshot("new", 500L), revision = 4L))
+            coordinator.accept(
+                PlaybackCheckpoint.Position(
+                    generation = 1L,
+                    currentOccurrenceId = "new",
+                    positionMillis = 400L,
+                    revision = 3L,
+                ))
+            coordinator.accept(
+                PlaybackCheckpoint.Position(
+                    generation = 1L,
+                    currentOccurrenceId = "old",
+                    positionMillis = 900L,
+                    revision = 5L,
+                ))
+            coordinator.flush()
+
+            assertEquals("new", store.durableSnapshot.currentTrackId)
+            assertEquals(500L, store.durableSnapshot.positionMillis)
+            assertTrue(store.savedPositions.isEmpty())
+
+            // A delayed position can also arrive after the structural save
+            // was flushed; both the revision and current guards still apply.
+            coordinator.accept(
+                PlaybackCheckpoint.Position(
+                    generation = 1L,
+                    currentOccurrenceId = "new",
+                    positionMillis = 300L,
+                    revision = 3L,
+                ))
+            coordinator.accept(
+                PlaybackCheckpoint.Position(
+                    generation = 1L,
+                    currentOccurrenceId = "old",
+                    positionMillis = 900L,
+                    revision = 5L,
+                ))
+            coordinator.flush()
+            assertEquals(500L, store.durableSnapshot.positionMillis)
+            assertTrue(store.savedPositions.isEmpty())
+            scope.cancel()
+        }
+
+    @Test
+    fun seekAndPausePersistFullSnapshotsWithoutPositionLaneWrites() =
+        runBlocking {
+            val engine = FakePlaybackEngine()
+            val controller = PlaybackController(engine)
+            val store = RecordingStore()
+            val scope = detachedScope(coroutineContext)
+            val coordinator =
+                PlaybackSessionCoordinator(controller, store, scope)
+            coordinator.restoreOnce(emptyList())
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence(
+                        "current-a", playableTracks("track-a").single())),
+                "current-a",
+            )
+            withTimeout(5_000) {
+                controller.state.first {
+                    it.currentOccurrenceId == "current-a" &&
+                        it.status == PlaybackStatus.Paused
+                }
+            }
+            val generation = engine.activeGenerationForTest()
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
+            engine.listener?.onPlaybackProgress(generation, 1_000L, 120_000L)
+            coordinator.flush()
+            assertEquals(1, store.savedPositions.size)
+
+            val savesBeforeSeek = store.saveAttempts
+            controller.seekTo(7_000L)
+            coordinator.flush()
+            assertEquals(savesBeforeSeek + 1, store.saveAttempts)
+            assertEquals(7_000L, store.saved.last().positionMillis)
+
+            val positionsBeforePause = store.savedPositions.size
+            controller.pause()
+            coordinator.flush()
+            assertEquals(positionsBeforePause, store.savedPositions.size)
+            assertEquals(7_000L, store.durableSnapshot.positionMillis)
+            assertEquals(7_000L, store.saved.last().positionMillis)
+            scope.cancel()
+        }
 
     @Test
     fun queueReplacementAfterBlockedMutationKeepsItsShuffleOrder() =
@@ -381,11 +566,16 @@ class PlaybackSessionCoordinatorTest {
                     PlaybackStatus.Playing) kotlinx.coroutines.yield()
             }
             coordinator.flush()
+            engine.listener?.onPlaybackProgress(
+                engine.activeGenerationForTest(), 900L, 1_234L)
+            coordinator.flush()
+            assertEquals(900L, store.durableSnapshot.positionMillis)
 
             engine.complete()
             coordinator.flush()
 
             assertEquals(1_234L, store.saved.last().positionMillis)
+            assertEquals(1_234L, store.durableSnapshot.positionMillis)
             assertEquals("terminal", store.saved.last().currentTrackId)
             scope.cancel()
         }
@@ -985,7 +1175,7 @@ class PlaybackSessionCoordinatorTest {
         coordinator.accept(delayedCheckpoint)
         coordinator.flush()
 
-        assertDurable(store.saved.last())
+        assertDurable(store.durableSnapshot)
         scope.cancel()
     }
 }
@@ -1177,12 +1367,16 @@ private class RecordingSessionController(
 
 private class RecordingStore(
     private val initial: PlaybackSessionSnapshot = PlaybackSessionSnapshot(),
-    private val events: MutableList<String> = mutableListOf(),
+    val events: MutableList<String> = mutableListOf(),
     private val readFailure: Throwable? = null,
     private val failSaveNumber: Int? = null,
     private val blockSaveNumber: Int? = null,
 ) : PlaybackSessionStore {
     val saved = mutableListOf<PlaybackSessionSnapshot>()
+    val savedPositions = mutableListOf<Pair<String, Long>>()
+    var durableSnapshot: PlaybackSessionSnapshot = initial
+        private set
+
     var readAttempts: Int = 0
         private set
 
@@ -1217,10 +1411,30 @@ private class RecordingStore(
         if (failSaveNumber == saveAttempts)
             throw IllegalStateException("save failed")
         saved += snapshot
+        durableSnapshot = snapshot
+    }
+
+    override suspend fun savePosition(
+        currentOccurrenceId: String,
+        positionMillis: Long,
+    ) {
+        val sanitized = positionMillis.coerceAtLeast(0L)
+        events += "position:$currentOccurrenceId:$sanitized"
+        savedPositions += currentOccurrenceId to sanitized
+        if (durableSnapshot.currentOccurrenceId == currentOccurrenceId) {
+            durableSnapshot = durableSnapshot.copy(positionMillis = sanitized)
+        }
     }
 }
 
 private class BlockingReadFailure : IllegalStateException("read failed")
+
+private fun occurrenceSnapshot(id: String, position: Long) =
+    PlaybackSessionSnapshot(
+        queue = listOf(SessionQueueEntry(id, id)),
+        currentOccurrenceId = id,
+        positionMillis = position,
+    )
 
 private fun snapshot(id: String, positionMillis: Long = 0L) =
     PlaybackSessionSnapshot(

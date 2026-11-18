@@ -4,7 +4,6 @@ import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
-import com.eterocell.rhythhaus.session.ProgressCheckpointKey
 import com.eterocell.rhythhaus.session.RevisionedPlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.SessionQueueEntry
 import kotlin.math.max
@@ -217,6 +216,13 @@ private data class SelectionRequest(
 private data class PlaybackStartedKey(
     val generation: Long,
     val occurrenceId: String,
+)
+
+/** Identifies one progress checkpoint within an active playback generation. */
+private data class ProgressCheckpointKey(
+    val generation: Long,
+    val currentOccurrenceId: String,
+    val secondBucket: Long,
 )
 
 private data class SleepTimerCompletionKey(
@@ -1655,6 +1661,7 @@ internal constructor(
                         if (original.title == latest.title &&
                             original.artist == latest.artist &&
                             original.album == latest.album &&
+                            original.albumArtist == latest.albumArtist &&
                             original.replayGainTrackGainDb ==
                                 latest.replayGainTrackGainDb &&
                             original.replayGainTrackPeak ==
@@ -1671,6 +1678,7 @@ internal constructor(
                                         title = latest.title,
                                         artist = latest.artist,
                                         album = latest.album,
+                                        albumArtist = latest.albumArtist,
                                         replayGainTrackGainDb =
                                             latest.replayGainTrackGainDb,
                                         replayGainTrackPeak =
@@ -3675,9 +3683,11 @@ internal constructor(
                 checkpointChannel
                     .trySend(
                         CheckpointEnvelope.Checkpoint(
-                            PlaybackCheckpoint.PlayingProgress(
-                                key = key,
-                                snapshot = settled.toSessionSnapshot(),
+                            PlaybackCheckpoint.Position(
+                                generation = key.generation,
+                                currentOccurrenceId = key.currentOccurrenceId,
+                                positionMillis =
+                                    max(0L, settled.positionMillis),
                                 revision = settled.checkpointRevision,
                             ),
                         ),

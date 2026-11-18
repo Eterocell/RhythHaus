@@ -52,11 +52,13 @@ jobs:
       - name: Run JVM test battery
         run: >-
           ./gradlew
-          :core:model:jvmTest :core:ui:jvmTest :core:playback:jvmTest
-          :feature:library:impl:jvmTest :feature:playlists:impl:jvmTest
-          :feature:search:jvmTest :feature:settings:jvmTest
-          :feature:nowplaying:jvmTest :shared:jvmTest
+          jvmTest :androidApp:testDebugUnitTest :feature:library:impl:testAndroidHostTest :desktopApp:test
           --configuration-cache --configuration-cache-problems=fail
+
+      - name: Test convention plugins and architecture rules
+        run: |
+          ./gradlew :architecture-processor:jar --configuration-cache --configuration-cache-problems=fail
+          ./gradlew :build-logic:convention:test -Prhythhaus.architectureProcessorJar="$PWD/architecture-processor/build/libs/architecture-processor.jar" --configuration-cache --configuration-cache-problems=fail
 
   android-build:
     runs-on: macos-latest

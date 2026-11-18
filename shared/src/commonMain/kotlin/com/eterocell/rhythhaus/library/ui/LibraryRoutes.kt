@@ -29,6 +29,7 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.albumIdentity
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -217,6 +218,7 @@ internal fun LibraryRouteScreen(
     onEditTrackMetadata: ((String) -> Unit)? = null,
     safeContentPadding: PaddingValues = PaddingValues(),
 ) {
+    val searchArtworkLoader = LocalTrackArtworkLoader.current
     Box(Modifier.fillMaxSize().padding(safeContentPadding)) {
         when (route) {
             LibraryRoute.Settings -> {
@@ -764,6 +766,7 @@ internal fun LibraryRouteScreen(
                             EqualizerStrip(active = true)
                         }
                     },
+                    artworkLoader = { id -> searchArtworkLoader(id)?.bytes },
                     interactive = interactive,
                     bottomContentPadding = bottomContentPadding,
                     initialFirstVisibleItemIndex = searchFirstVisibleItemIndex,
@@ -894,9 +897,15 @@ internal fun playSearchTrack(
  * Resolves the ordered album track sequence for a detail route, matching the
  * feature's internal grouping order (disc, track, lowercase title).
  */
-private fun albumDetailTracks(tracks: List<Track>, album: String): List<Track> =
+private fun albumDetailTracks(
+    tracks: List<Track>,
+    album: String,
+    albumArtist: String,
+): List<Track> =
     tracks
-        .filter { it.album == album }
+        .filter {
+            it.album == album && it.albumIdentity.albumArtist == albumArtist
+        }
         .sortedWith(
             compareBy<Track> { it.discNumber ?: 0 }
                 .thenBy { it.trackNumber ?: 0 }
@@ -970,7 +979,12 @@ internal fun LibraryRouteContent(
     Box(Modifier.fillMaxSize().padding(safeContentPadding)) {
         when (route) {
             is LibraryRoute.AlbumDetail -> {
-                val albumTracks = albumDetailTracks(tracks, route.album)
+                val albumTracks =
+                    albumDetailTracks(
+                        tracks,
+                        route.album,
+                        route.albumArtist,
+                    )
                 if (albumTracks.isEmpty()) {
                     if (!metadataEditorOpen) LaunchedEffect(route) { onBack() }
                     Box(modifier = Modifier.fillMaxSize())
@@ -980,20 +994,29 @@ internal fun LibraryRouteContent(
                         summary =
                             LibraryDetailSummary.Album(
                                 trackCount = albumTracks.size,
-                                artist = albumTracks.firstOrNull()?.artist,
+                                artist =
+                                    route.albumArtist.takeIf {
+                                        it.isNotBlank()
+                                    } ?: albumTracks.firstOrNull()?.artist,
                             ),
                         tracks = albumTracks,
                         representativeArtworkTrack = albumTracks.firstOrNull(),
                         currentTrackId = playbackState.currentTrack?.id,
-                        selectionPage = LibrarySelectionPage.Album(route.album),
+                        selectionPage =
+                            LibrarySelectionPage.Album(
+                                route.album,
+                                route.albumArtist,
+                            ),
                         selectionModeActive =
                             trackSelectionState.pageKey ==
-                                TrackSelectionPageKey.Album(route.album) &&
+                                TrackSelectionPageKey.Album(
+                                    route.album, route.albumArtist) &&
                                 trackSelectionState.selectedTrackIds
                                     .isNotEmpty(),
                         selectedTrackIds =
                             if (trackSelectionState.pageKey ==
-                                TrackSelectionPageKey.Album(route.album))
+                                TrackSelectionPageKey.Album(
+                                    route.album, route.albumArtist))
                                 trackSelectionState.selectedTrackIds
                             else emptySet(),
                         labels = librarySharedLabels(),
@@ -1006,7 +1029,8 @@ internal fun LibraryRouteContent(
                         onToggleSelection = { trackId ->
                             onTrackSelectionAction(
                                 TrackSelectionAction.Toggle(
-                                    TrackSelectionPageKey.Album(route.album),
+                                    TrackSelectionPageKey.Album(
+                                        route.album, route.albumArtist),
                                     trackId,
                                 ),
                             )
@@ -1014,7 +1038,8 @@ internal fun LibraryRouteContent(
                         onStartSelection = { trackId ->
                             onTrackSelectionAction(
                                 TrackSelectionAction.Start(
-                                    TrackSelectionPageKey.Album(route.album),
+                                    TrackSelectionPageKey.Album(
+                                        route.album, route.albumArtist),
                                     trackId,
                                 ),
                             )
@@ -1022,7 +1047,8 @@ internal fun LibraryRouteContent(
                         onVisibleTrackIdsChanged = { ids ->
                             onTrackSelectionAction(
                                 TrackSelectionAction.ReconcileVisible(
-                                    TrackSelectionPageKey.Album(route.album),
+                                    TrackSelectionPageKey.Album(
+                                        route.album, route.albumArtist),
                                     ids))
                         },
                         onScrollPositionChanged = { index, offset ->

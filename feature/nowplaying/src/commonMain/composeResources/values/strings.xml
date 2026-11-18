@@ -16,6 +16,8 @@
     <string name="playback_error_missing_file">This media file is missing</string>
     <string name="playback_error_unknown">Playback failed</string>
     <string name="playback_error_unsupported_format">This audio format is not supported</string>
+    <string name="playback_position">Playback position</string>
+    <string name="playback_position_value_format">%1$s of %2$s</string>
     <string name="playback_status_buffering">Buffering</string>
     <string name="playback_status_error">Needs a local file</string>
     <string name="playback_status_loading">Loading</string>

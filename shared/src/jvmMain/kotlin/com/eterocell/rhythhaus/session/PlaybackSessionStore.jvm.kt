@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.session
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
+import com.eterocell.rhythhaus.library.LibraryDatabase
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,14 +17,15 @@ internal class JvmPlaybackSessionStoreFactory(
     homeDirectory: File,
     private val scope: CoroutineScope,
 ) {
-    val preferenceFile: File =
+    /** Legacy Preferences file imported once into the database store. */
+    private val preferenceFile: File =
         File(
                 homeDirectory,
                 "Library/Application Support/RhythHaus/$PlaybackSessionPreferenceFileName",
             )
             .also { file -> file.parentFile?.mkdirs() }
 
-    val dataStore by lazy {
+    private val legacyDataStore by lazy {
         PreferenceDataStoreFactory.createWithPath(
             corruptionHandler =
                 ReplaceFileCorruptionHandler { emptyPreferences() },
@@ -33,8 +35,12 @@ internal class JvmPlaybackSessionStoreFactory(
         )
     }
 
-    fun createStore(): PlaybackSessionStore =
-        DataStorePlaybackSessionStore(dataStore)
+    fun createStore(database: LibraryDatabase): PlaybackSessionStore =
+        SqlDelightPlaybackSessionStore(
+            database = database.database,
+            legacySource =
+                DataStorePlaybackSessionLegacySource(legacyDataStore),
+        )
 }
 
 private val playbackSessionStoreFactory =
@@ -43,5 +49,6 @@ private val playbackSessionStoreFactory =
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     )
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    playbackSessionStoreFactory.createStore()
+actual fun createPlaybackSessionStore(
+    database: LibraryDatabase
+): PlaybackSessionStore = playbackSessionStoreFactory.createStore(database)

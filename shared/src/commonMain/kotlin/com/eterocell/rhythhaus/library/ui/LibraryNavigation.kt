@@ -6,7 +6,10 @@ import kotlin.math.roundToInt
 sealed interface LibraryRoute {
     data object Home : LibraryRoute
 
-    data class AlbumDetail(val album: String) : LibraryRoute
+    data class AlbumDetail(
+        val album: String,
+        val albumArtist: String = "",
+    ) : LibraryRoute
 
     data class ArtistDetail(val artist: String) : LibraryRoute
 
@@ -173,7 +176,11 @@ fun libraryBottomBarContent(
                     route is LibraryRoute.PlaylistDetail
 
             is TrackSelectionPageKey.Album ->
-                route == LibraryRoute.AlbumDetail(pageKey.album)
+                route ==
+                    LibraryRoute.AlbumDetail(
+                        album = pageKey.album,
+                        albumArtist = pageKey.albumArtist,
+                    )
 
             is TrackSelectionPageKey.Artist ->
                 route == LibraryRoute.ArtistDetail(pageKey.artist)
@@ -283,7 +290,8 @@ fun trackSelectionPageKeyFor(
             TrackSelectionPageKey.HomeSongs.takeIf {
                 browseMode.isFlatHomeBrowseMode()
             }
-        is LibraryRoute.AlbumDetail -> TrackSelectionPageKey.Album(route.album)
+        is LibraryRoute.AlbumDetail ->
+            TrackSelectionPageKey.Album(route.album, route.albumArtist)
         is LibraryRoute.ArtistDetail ->
             TrackSelectionPageKey.Artist(route.artist)
         LibraryRoute.Search -> TrackSelectionPageKey.Search
