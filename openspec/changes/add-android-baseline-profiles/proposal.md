@@ -7,7 +7,7 @@ RhythHaus's R8 release APK already carries a compiled Baseline Profile, but the 
 - Add an opt-in `:baselineprofile` instrumentation module targeting `:androidApp`, with a fixed, disposable audio catalog and shared startup and first-scroll journeys.
 - Generate and check in app-owned Baseline Profile rules for both journeys. Package them in the normal release without making normal builds run device tests.
 - Mark meaningful Android startup readiness for time-to-full-display and expose stable selectors for the Library scroll journey.
-- Verify app-owned profile rules reach the optimized release APK. Measure startup and scroll in both profile-required and uncompiled modes on the same qualifying test device.
+- Verify app-owned profile rules reach the optimized release APK. Provide startup and scroll benchmarks for both profile-required and uncompiled modes on the same qualifying test device. The user waived timing execution for this change.
 
 ## Capabilities
 

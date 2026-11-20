@@ -24,4 +24,4 @@ See the [Superpowers design](../../../docs/superpowers/specs/2026-11-20-android-
 - The profile plugin and dedicated test module must resolve the current AGP built-in Kotlin variants; check real tasks rather than treating a template as compatibility evidence.
 - The same package is installed with local profiling signing. Only use a disposable test user/device with no personal app data, and preserve the prepared fixture across compatible replacements.
 - Existing dependency profile bytes can mask a broken app-owned rules path. Presence and profile digest alone do not prove coverage.
-- Missing hardware leaves profile generation or timing acceptance open; no emulator timing substitute from a stock image.
+- Profile generation is required. The user waived paired timing for this change; any future timing comparison still requires a qualifying target, not a stock emulator.

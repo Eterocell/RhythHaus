@@ -8,7 +8,7 @@
 
 ## Current focus — Phase 1: release closure and first-run usability
 
-Android Baseline Profiles (2026-11-20): app-owned cold startup and Library Songs scroll rules were collected on a disposable API 34 emulator. The ordinary optimized APK was decoded to confirm coverage from both journeys; ordinary APK, split APK and AAB contract checks passed without a device. The authorized Pixel 7 Pro run failed in AndroidX UiAutomation before measurement. [Paired timing acceptance](openspec/changes/add-android-baseline-profiles/tasks.md) remains open on a qualifying device; no performance improvement is claimed.
+Android Baseline Profiles (2026-11-20): app-owned cold startup and Library Songs scroll rules were collected on a disposable API 34 emulator. The ordinary optimized APK was decoded to confirm coverage from both journeys; ordinary APK, split APK and AAB contract checks passed without a device. The authorized Pixel 7 Pro run failed in AndroidX UiAutomation before measurement. The user [waived paired timing for this change](openspec/changes/add-android-baseline-profiles/tasks.md); no performance improvement is claimed.
 
 Library and playback repairs (2026-11-18): [all eight implementation items](openspec/changes/repair-library-playback-review/tasks.md) have focused behavioral or CI evidence. Complete queue restore and position-only persistence use the existing SQLDelight database. The whole-history migration verifier remains blocked by a pre-existing `scan_session` column-order mismatch; affected-table migration checks and database JVM tests passed. See [`progress.md`](progress.md) for verification scope and remaining device acceptance.
 

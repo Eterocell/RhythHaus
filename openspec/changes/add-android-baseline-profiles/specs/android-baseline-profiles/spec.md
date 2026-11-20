@@ -43,7 +43,7 @@ The ordinary optimized Android release SHALL package app-owned generated Baselin
 
 ### Requirement: Measure the shipped compilation behavior
 
-RhythHaus SHALL provide paired startup and first-scroll benchmark runs on the same supported device, production-equivalent optimized APK, and fixture, comparing required Baseline Profile compilation against no ahead-of-time compilation. Missing profile, missing fully drawn timing, or invalid scroll samples SHALL NOT be accepted as results.
+RhythHaus SHALL provide paired startup and first-scroll benchmarks that compare required Baseline Profile compilation against no ahead-of-time compilation on the same supported device, production-equivalent optimized APK, and fixture. Missing profile, missing fully drawn timing, or invalid scroll samples SHALL NOT be accepted as results.
 
 #### Scenario: Run a controlled comparison
 - **WHEN** both modes complete on the same qualifying device against the same optimized APK and fixture

@@ -21,5 +21,5 @@ Execution plan: [Android Baseline Profiles Implementation Plan](../../../docs/su
 
 ## 5. Measurement and evidence
 
-- [ ] 5.1 Run the paired minified release-equivalent startup and first-scroll Macrobenchmarks on one qualifying device, requiring the profile in the profiled mode. Blocked: the [authorized Pixel 7 Pro run](../../../baselineprofile/README.md#pixel-7-pro-benchmark-attempt--2026-11-20) crashed before measurement and the device disconnected before the diagnostic; neither this Pixel nor the stock collection emulator meets the low-end reference requirement.
+- [x] 5.1 Paired on-device timing waived by the user for this change. The release-equivalent Macrobenchmark harness remains available; the [Pixel 7 Pro run and isolated retries](../../../baselineprofile/README.md#pixel-7-pro-benchmark-attempt--2026-11-20) produced no timing samples.
 - [x] 5.2 Record raw evidence and reported metrics or exact blockers; update the handoff and roadmap, and commit the accepted change. See the [runbook evidence](../../../baselineprofile/README.md#initial-collection-evidence--2026-11-20).
