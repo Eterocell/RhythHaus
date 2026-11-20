@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.build.logic.android.application)
     id("build-logic.android.abi-contract")
+    alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
 }
@@ -29,6 +30,8 @@ dependencies {
     implementation(projects.shared)
 
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(projects.baselineprofile)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
@@ -68,6 +71,7 @@ android {
         applicationId = "com.eterocell.rhythhaus"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
+        buildConfigField("boolean", "PROFILE_JOURNEYS", "false")
         versionCode =
             rhythHausVersionCode.get().toIntOrNull()
                 ?: throw GradleException(
@@ -106,17 +110,32 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+    buildFeatures { buildConfig = true }
+}
+
+baselineProfile {
+    saveInSrc = true
+    automaticGenerationDuringBuild = false
 }
 
 val androidExtension = extensions.getByType<ApplicationExtension>()
 val androidComponents =
     extensions.getByType<ApplicationAndroidComponentsExtension>()
 
-androidComponents.beforeVariants(androidComponents.selector().all()) { variant
-    ->
-    (variant as HasUnitTestBuilder).enableUnitTest = true
+val profilingBuildTypes = setOf("nonMinifiedRelease", "benchmarkRelease")
+androidComponents.finalizeDsl { extension ->
+    profilingBuildTypes.forEach { name ->
+        extension.buildTypes.named(name) {
+            signingConfig = extension.signingConfigs.getByName("debug")
+            buildConfigField("boolean", "PROFILE_JOURNEYS", "true")
+        }
+    }
 }
-
+androidComponents.beforeVariants { variant ->
+    if (variant.buildType !in profilingBuildTypes) {
+        (variant as HasUnitTestBuilder).enableUnitTest = true
+    }
+}
 val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
 val resolvedAapt2 = androidSdkDirectory.map {
     resolveAapt2(it.asFile, androidExtension.buildToolsVersion)

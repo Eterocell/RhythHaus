@@ -206,7 +206,11 @@ public fun LibraryHomeContent(
                 color = HausColors.current.background) {
                     LazyColumn(
                         state = homeListState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().semantics {
+                            if (browseMode == BrowseMode.Songs) {
+                                testTag = "rhythhaus-library-songs-list"
+                            }
+                        },
                         verticalArrangement = Arrangement.spacedBy(18.dp),
                     ) {
                         item {

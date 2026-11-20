@@ -3,6 +3,14 @@
 - Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
 - Durable requirements and task status: [`openspec/changes/`](openspec/changes/). The dated handoffs below are newest first.
 
+## Handoff — 2026-11-20 Android Baseline Profiles
+
+- Route: OpenSpec + Superpowers. Owner: implementation. Input: [approved plan](docs/superpowers/plans/2026-11-20-android-baseline-profiles.md). The test-only `:baselineprofile` module collects startup and Library Songs fling rules, and builds the four paired Macrobenchmarks. The production Android Activity reports fully drawn from the visible onboarding page or from Library after its initial publication is applied.
+- Build evidence: `architectureCheck` and the app/test `assembleNonMinifiedRelease` and `assembleBenchmarkRelease` tasks passed. The ordinary `assembleRelease --dry-run` graph scheduled no device tests or profile collection. Signed local APK inspection confirmed the same debug key, shell profiling and the ProfileInstaller receiver; R8 mapping was present for `benchmarkRelease`, not for the collection variant.
+- Startup and journey evidence: `:shared:jvmTest --tests '*AppStartupDrawnTest' :androidApp:compileNonMinifiedReleaseKotlin` passed. The disposable API 34 emulator displayed first-run onboarding and a returning empty Library with a fully drawn event on both launches. A test run against the empty Library rejected the fixture; the subsequent `:androidApp:generateReleaseBaselineProfile` run passed both journeys after importing all 256 WAVs via the system picker. See the [runbook](baselineprofile/README.md#initial-collection-evidence--2026-11-20) for hashes and raw artifact locations.
+- Release evidence: the ordinary and split `:androidApp:verifyReleaseApks` invocations and `:androidApp:verifyReleaseAab` passed without an online device. The APK and AAB contain both binary profile assets. Profgen decoded the optimized APK against its matching mapping: 364 app-owned methods matched the startup capture and five matched only the scroll capture after intersection with the merged input.
+- Next owner: implementation when a low-end physical Android device or qualifying Cuttlefish target is available. `adb devices -l` showed no attached device, and no Cuttlefish launcher was available. [OpenSpec 5.1](openspec/changes/add-android-baseline-profiles/tasks.md) stays open; no AOT comparison, Perfetto result or performance claim. Emulator startup events are functional evidence only. The full cross-platform `./init.sh` was not run; the checks above target the Android deliverables and JVM readiness regression.
+
 ## Handoff — 2026-11-20 Android TagLib NDK pin
 
 - `:taglib` pins Android NDK `30.0.16248370` in [`taglib/build.gradle.kts`](taglib/build.gradle.kts); the former `ANDROID_NDK_VERSION` override is removed. CMake configuration directories are scoped to the ABI and NDK version to avoid reusing an old compiler selection.

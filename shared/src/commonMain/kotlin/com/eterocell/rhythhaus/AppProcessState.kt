@@ -103,8 +103,8 @@ internal class AppProcessState(
             val content = loadLibraryContent(repository, platformAccess)
             publishInitialLibraryContent(lifecycle, reconciler, content) { state
                 ->
-                state.content?.let { publications.publish(it) }
-                initial.value = state
+                val revision = state.content?.let { publications.publish(it).revision }
+                initial.value = state.copy(publicationRevision = revision)
             }
         }
     }

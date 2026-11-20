@@ -310,6 +310,12 @@ and Spotless check tasks across all projects through task-provider dependencies.
 runs `qualityCheck` on PRs and main plus a JVM test leg across the shared/feature/core
 modules.
 
+The test-only `:baselineprofile` module and `:androidApp` exchange built artifacts, not
+source dependencies: `baselineProfile` carries generated rules to the app and `testedApks`
+carries the target APK to device tests. Only those two exact module/configuration edges are
+excluded from the source dependency graph. [Generation and measurement](../baselineprofile/README.md)
+are explicit device tasks; ordinary release builds consume the checked-in rules.
+
 The tooling-only `:architecture-processor` is exempt only when the owning KMP core/API
 convention has applied KSP and registered the direct production dependency in the registry;
 all spoofed or unregistered placements remain `ARCH-EDGE`. Core model and core database are
