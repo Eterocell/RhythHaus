@@ -154,7 +154,7 @@ val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
 
 // Android NDK native TagLib builds per ABI
 
-val androidNdkVersion = System.getenv("ANDROID_NDK_VERSION") ?: "30.0.15729638"
+val androidNdkVersion = "30.0.16248370"
 val androidHome =
     System.getenv("ANDROID_HOME")
         ?: "${System.getProperty("user.home")}/Library/Android/sdk"
@@ -182,9 +182,10 @@ val androidNativeBuildTasks =
                     else -> error("unsupported ABI: $abi")
                 }
             val ndkToolchain = "${ndkAbi}$androidTagLibMinSdk"
+            // CMake caches the compiler selection in its build directory.
             val buildDir =
                 layout.buildDirectory
-                    .dir("native/androidTagLibHelper-$abi")
+                    .dir("native/androidTagLibHelper-$abi/$androidNdkVersion")
                     .get()
                     .asFile
             val outputSo =

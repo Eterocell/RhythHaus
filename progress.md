@@ -3,6 +3,11 @@
 - Canonical product priorities and release-evidence gates: [`roadmap.md`](roadmap.md).
 - Durable requirements and task status: [`openspec/changes/`](openspec/changes/). The dated handoffs below are newest first.
 
+## Handoff — 2026-11-20 Android TagLib NDK pin
+
+- `:taglib` pins Android NDK `30.0.16248370` in [`taglib/build.gradle.kts`](taglib/build.gradle.kts); the former `ANDROID_NDK_VERSION` override is removed. CMake configuration directories are scoped to the ABI and NDK version to avoid reusing an old compiler selection.
+- `./gradlew :androidApp:assembleRelease --offline --configuration-cache` passed with the already-installed NDK. No toolchain installation or device test was performed. The release build is available for the next Compose performance measurement pass; no benchmark results are claimed.
+
 ## Handoff — 2026-11-18 library and playback review repairs
 
 Route: openspec+superpowers. Owner: implementation. Input: [approved plan](docs/superpowers/plans/2026-11-18-library-playback-review.md). Track the eight outcomes in [`repair-library-playback-review`](openspec/changes/repair-library-playback-review/tasks.md).

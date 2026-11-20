@@ -17,7 +17,7 @@ See [architecture guidance](docs/architecture.md) and [ADRs](docs/adr/) for modu
 
 ## Run the apps
 
-- Android: open the project in Android Studio or assemble a debug APK with `./gradlew :androidApp:assembleDebug`.
+- Android: install side-by-side NDK `30.0.16248370` in the Android SDK used by `:taglib`. Then open the project in Android Studio or assemble a debug APK with `./gradlew :androidApp:assembleDebug`.
 - Desktop: `./gradlew :desktopApp:run`.
 - iOS: open [`iosApp`](iosApp/) in Xcode and run the `iosApp` scheme.
 
