@@ -1054,10 +1054,13 @@ private fun BrowseModeButton(
     onModeChange: (BrowseMode) -> Unit,
 ) {
     val label = stringResource(mode.displayLabelResource())
+    val taggedModifier =
+        if (mode == BrowseMode.Songs) modifier.testTag("rhythhaus-library-songs")
+        else modifier
     Button(
         onClick = { onModeChange(mode) },
         modifier =
-            modifier.heightIn(min = 48.dp).semantics {
+            taggedModifier.heightIn(min = 48.dp).semantics {
                 contentDescription = label
                 selected = isSelected
             },

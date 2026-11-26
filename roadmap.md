@@ -8,6 +8,8 @@
 
 ## Current focus — Phase 1: release closure and first-run usability
 
+Android Baseline Profiles (archived 2026-11-26): app-owned cold startup and Library Songs scroll rules were collected on a disposable API 34 emulator. The ordinary optimized APK was decoded to confirm coverage from both journeys; ordinary APK, split APK and AAB contract checks passed without a device. The authorized Pixel 7 Pro run failed in AndroidX UiAutomation before measurement. The user [waived paired timing for this change](openspec/changes/archive/2026-11-26-add-android-baseline-profiles/tasks.md); no performance improvement is claimed. See the [canonical spec](openspec/specs/android-baseline-profiles/spec.md).
+
 Library and playback repairs (2026-11-18): [all eight implementation items](openspec/changes/repair-library-playback-review/tasks.md) have focused behavioral or CI evidence. Complete queue restore and position-only persistence use the existing SQLDelight database. The whole-history migration verifier remains blocked by a pre-existing `scan_session` column-order mismatch; affected-table migration checks and database JVM tests passed. See [`progress.md`](progress.md) for verification scope and remaining device acceptance.
 
 Search artwork follow-up (2026-11-17): supplied embedded covers now render in Search rows with neutral fallback for missing or undecodable bytes. Search's 24 JVM tests, desktop compilation and strict OpenSpec validation pass in isolated `fix/search-result-artwork`; independent review found no blocking defects. A tag-retaining note-only negative control demonstrates the pixel regression catches the original behavior. The user authorized committing, main integration and worktree removal; the deferred Studio visual/device matrix is unchanged.

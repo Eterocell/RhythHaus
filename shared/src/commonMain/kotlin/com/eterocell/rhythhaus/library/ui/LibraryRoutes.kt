@@ -49,6 +49,8 @@ import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.mediastore.MediaStoreAudioPermissionState
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.onboarding.OnboardingScreen
+import com.eterocell.rhythhaus.LocalStartupLibraryReady
+import com.eterocell.rhythhaus.MarkAppStartupDrawn
 import com.eterocell.rhythhaus.onboarding.currentOnboardingPlatform
 import com.eterocell.rhythhaus.onboarding.toGuidance
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
@@ -809,6 +811,9 @@ internal fun LibraryRouteScreen(
 
             is LibraryRoute.Onboarding ->
                 if (isValidOnboardingPageIndex(route.pageIndex)) {
+                    if (interactive && route.launchMode == OnboardingLaunchMode.FirstRun) {
+                        MarkAppStartupDrawn()
+                    }
                     OnboardingScreen(
                         pageIndex = route.pageIndex,
                         platform = currentOnboardingPlatform().toGuidance(),
@@ -976,7 +981,11 @@ internal fun LibraryRouteContent(
         remember(libraryTracks) {
             libraryTracks.associate { it.id to it.toPlayableTrack() }
         }
-    Box(Modifier.fillMaxSize().padding(safeContentPadding)) {
+    val libraryReady =
+        route == LibraryRoute.Home && destinationId != null && LocalStartupLibraryReady.current
+    if (libraryReady) MarkAppStartupDrawn()
+    val modifier = Modifier.fillMaxSize().padding(safeContentPadding)
+    Box(if (libraryReady) modifier.testTag("rhythhaus-library-ready") else modifier) {
         when (route) {
             is LibraryRoute.AlbumDetail -> {
                 val albumTracks =

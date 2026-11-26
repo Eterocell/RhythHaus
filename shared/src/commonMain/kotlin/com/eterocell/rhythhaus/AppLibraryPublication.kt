@@ -181,9 +181,13 @@ internal data class InitialLibraryPublicationState(
     val content: LibraryContentState? = null,
     val errorMessage: String? = null,
     val isReady: Boolean = false,
+    val publicationRevision: Long? = null,
 ) {
     val mutationsAllowed: Boolean
         get() = isReady
+
+    fun isAppliedAt(revision: Long): Boolean =
+        isReady && publicationRevision?.let { revision >= it } == true
 
     fun complete(content: LibraryContentState): InitialLibraryPublicationState =
         copy(

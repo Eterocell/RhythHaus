@@ -31,7 +31,7 @@ fun App(
     desktopDropEvents: Flow<List<String>>? = null,
     desktopDropActive: Boolean = false,
     onDesktopDropAvailabilityChanged: (Boolean) -> Unit = {},
-) {
+): Unit = WithAppStartupDrawReporter {
     val controller = koinInject<PlaybackController>()
     val outputStatusProvider =
         koinInject<PlatformPlaybackEngine>() as? PlaybackOutputStatusProvider

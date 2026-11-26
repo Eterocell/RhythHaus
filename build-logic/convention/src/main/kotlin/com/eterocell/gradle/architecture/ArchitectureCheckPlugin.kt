@@ -56,7 +56,14 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
                                         providerPath = dependency.path,
                                         directSelfDependencyCount = directSelfDependencyCount,
                                     )
-                                isVersionsPluginAggregation || isKspRegistration || isAndroidSyntheticSelfDependency
+                                // Profiles flow to the app; APKs flow to the device-test module.
+                                // Neither artifact configuration adds a source dependency.
+                                val isProfilingArtifact = when (configuration.name) {
+                                    "baselineProfile" -> consumer.path == ":androidApp" && dependency.path == ":baselineprofile"
+                                    "testedApks" -> consumer.path == ":baselineprofile" && dependency.path == ":androidApp"
+                                    else -> false
+                                }
+                                isVersionsPluginAggregation || isKspRegistration || isAndroidSyntheticSelfDependency || isProfilingArtifact
                             }
                             .map { "${consumer.path}|${configuration.name}|${it.path}" }
                     }

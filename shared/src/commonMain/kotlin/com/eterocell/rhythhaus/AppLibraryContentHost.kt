@@ -394,6 +394,8 @@ internal fun AppLibraryContentHost(
         }
     RhythHausTheme(resolved = resolvedTheme) {
         CompositionLocalProvider(
+            LocalStartupLibraryReady provides
+                initialPublication.isAppliedAt(libraryRevision),
             LocalTrackArtworkLoader provides
                 { trackId ->
                     repository.artworkForTrack(trackId)

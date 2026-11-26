@@ -7,6 +7,7 @@ RhythHaus is a local-first music player for Android, iOS, and macOS/desktop JVM.
 | Area | Responsibility |
 | --- | --- |
 | `androidApp`, `iosApp`, `desktopApp` | Thin platform entry points and packaging. |
+| [`baselineprofile`](baselineprofile/README.md) | Opt-in Android Baseline Profile generation and startup/scroll benchmarks. |
 | `shared` | App composition, cross-feature shell/navigation, lifecycle, and iOS framework facade. |
 | `core/model`, `core/ui`, `core/platform`, `core/playback`, `core/database` | Cross-feature models, shared UI/theme, platform contracts, playback, and physical database ownership. |
 | `feature/library`, `feature/playlists`, `feature/search`, `feature/nowplaying`, `feature/settings`, `feature/onboarding` | Feature contracts and implementations, owned by their respective modules. |
