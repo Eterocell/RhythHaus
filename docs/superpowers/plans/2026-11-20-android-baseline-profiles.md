@@ -8,7 +8,7 @@
 
 **Tech Stack:** AGP 9.5.1, Kotlin 2.4.21, AndroidX Baseline Profile and Macrobenchmark 1.5.0, UI Automator 2.4.1, Activity Compose, ProfileInstaller 1.4.1 or newer compatible resolved version.
 
-**Spec:** [Superpowers design](../specs/2026-11-20-android-baseline-profiles-design.md) and [OpenSpec requirements](../../../openspec/changes/add-android-baseline-profiles/specs/android-baseline-profiles/spec.md).
+**Spec:** [Superpowers design](../specs/2026-11-20-android-baseline-profiles-design.md) and [OpenSpec requirements](../../../openspec/specs/android-baseline-profiles/spec.md).
 
 ## Global Constraints
 

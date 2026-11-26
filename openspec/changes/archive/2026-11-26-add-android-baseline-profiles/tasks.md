@@ -1,6 +1,6 @@
 # Tasks
 
-Execution plan: [Android Baseline Profiles Implementation Plan](../../../docs/superpowers/plans/2026-11-20-android-baseline-profiles.md).
+Execution plan: [Android Baseline Profiles Implementation Plan](../../../../docs/superpowers/plans/2026-11-20-android-baseline-profiles.md).
 
 ## 1. Build targets
 
@@ -21,5 +21,5 @@ Execution plan: [Android Baseline Profiles Implementation Plan](../../../docs/su
 
 ## 5. Measurement and evidence
 
-- [x] 5.1 Paired on-device timing waived by the user for this change. The release-equivalent Macrobenchmark harness remains available; the [Pixel 7 Pro run and isolated retries](../../../baselineprofile/README.md#pixel-7-pro-benchmark-attempt--2026-11-20) produced no timing samples.
-- [x] 5.2 Record raw evidence and reported metrics or exact blockers; update the handoff and roadmap, and commit the accepted change. See the [runbook evidence](../../../baselineprofile/README.md#initial-collection-evidence--2026-11-20).
+- [x] 5.1 Paired on-device timing waived by the user for this change. The release-equivalent Macrobenchmark harness remains available; the [Pixel 7 Pro run and isolated retries](../../../../baselineprofile/README.md#pixel-7-pro-benchmark-attempt--2026-11-20) produced no timing samples.
+- [x] 5.2 Record raw evidence and reported metrics or exact blockers; update the handoff and roadmap, and commit the accepted change. See the [runbook evidence](../../../../baselineprofile/README.md#initial-collection-evidence--2026-11-20).

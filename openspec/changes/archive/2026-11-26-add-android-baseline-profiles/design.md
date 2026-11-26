@@ -17,7 +17,7 @@ See [proposal.md](proposal.md) for motivation. The current `:androidApp` release
 3. Report fully drawn from Android when the visible onboarding or resolved Library screen is meaningful. The Library must use the initial publication already applied to the UI; do not infer readiness from the empty projection or a nonempty row count.
 4. Decode the optimized release profile against DEX and the R8 mapping to prove app-owned coverage. Use identical minified benchmark APK, device, and fixture for both ART compilation modes. Record actual measurements or an explicit blocker.
 
-See the [Superpowers design](../../../docs/superpowers/specs/2026-11-20-android-baseline-profiles-design.md) for fixture, metrics, and distribution details.
+See the [Superpowers design](../../../../docs/superpowers/specs/2026-11-20-android-baseline-profiles-design.md) for fixture, metrics, and distribution details.
 
 ## Risks / Trade-offs
 
